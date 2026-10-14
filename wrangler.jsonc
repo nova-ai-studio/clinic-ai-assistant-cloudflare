@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dental-assistant",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+
+  // Chat UI served from /public; API routes fall through to the Worker.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/chat", "/seed", "/embed", "/embed/status", "/knowledge", "/availability"]
+  },
+
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "dental-kb",
+      "remote": true
+    }
+  ],
+
+  "vars": {
+    "CHAT_MODEL": "gpt-4o-mini",
+    "EMBEDDING_MODEL": "text-embedding-3-small"
+  }
+
+  // Secrets (set with `wrangler secret put`, or .dev.vars locally):
+  //   OPENAI_API_KEY, ADMIN_TOKEN
+}

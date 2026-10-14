@@ -1,0 +1,1838 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Lumière Dental Assistant</title>
+<meta name="description" content="Demo AI assistant for a fictional dental clinic, answering in English or French from a knowledge base stored in Cloudflare Vectorize." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236f9275' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M7 3c-2.5 0-4 2-4 4.5 0 3 1.5 4.5 2 7 .5 2.5 1 6.5 2.5 6.5s1.5-3 2-5 1-3 2.5-3 2 1 2.5 3 .5 5 2 5 2-4 2.5-6.5 2-4 2-7C21 5 19.5 3 17 3c-2 0-3 1-5 1S9 3 7 3z'/></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+<style>
+  :root {
+    --page: #ffffff;
+    --panel: #f7f9f6;
+    --panel-head: #f1f5ef;
+    --text: #1d2a22;
+    --text-2: #46564c;
+    --muted: #7c8a80;
+    --accent: #6f9275;          /* dusty green */
+    --accent-strong: #557a5c;
+    --accent-soft: #edf3eb;
+    --hl: #e2ede0;              /* rows in context */
+    --line: #e2e8e1;
+    --fill-1: rgba(29, 52, 36, 0.04);
+    --fill-2: rgba(29, 52, 36, 0.08);
+    --danger: #b4483c;
+    --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--page);
+    color: var(--text);
+    font: 14px/21px var(--sans);
+    font-feature-settings: "cv11";
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  svg.i { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  svg.i20 { width: 20px; height: 20px; }
+  svg.i12 { width: 12px; height: 12px; }
+
+  .frame { display: flex; height: 100dvh; }
+
+  /* ── Chat ─────────────────────────────────────────────────────────── */
+  .chat { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .scroller { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #d5ddd4 transparent; }
+  .column { max-width: 808px; margin: 0 auto; padding: 24px 20px 0; display: flex; flex-direction: column; min-height: 100%; }
+  .transcript { padding-top: 4px; }
+
+  /* ── Start screen: logo, a tall centered input, suggestions under it ── */
+  .column.empty { justify-content: center; padding-bottom: 9vh; }
+  .column.empty .spark, .column.empty .extra-space, .column.empty .jump { display: none; }
+  .column.empty .dock { position: static; padding: 0; background: none; }
+  .column.empty .composer { padding: 14px 14px 12px 18px; border-radius: 20px; align-items: flex-end; }
+  .column.empty .composer textarea { min-height: 78px; font-size: 16px; line-height: 24px; padding: 4px 2px; }
+  .column.empty .send { width: 36px; height: 36px; border-radius: 10px; }
+  .column:not(.empty) .chips { display: none; }
+  .composer { view-transition-name: composer; }
+
+  .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: 720px; margin: 22px auto 0; }
+  .chips button {
+    height: 38px; padding: 0 16px; border-radius: 999px;
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--line); background: var(--page);
+    color: var(--text-2); font-size: 14px;
+    transition: border-color .15s, background .15s, color .15s, transform .15s;
+  }
+  .chips button svg { width: 13px; height: 13px; margin-right: -4px; opacity: 0; transform: translate(-3px, 3px); transition: opacity .15s, transform .15s; }
+  .chips button:hover { border-color: #b9cfb6; background: var(--accent-soft); color: var(--text); transform: translateY(-1px); }
+  .chips button:hover svg { opacity: 1; transform: none; color: var(--accent-strong); }
+
+  .turn-user { margin-top: 40px; display: flex; justify-content: flex-end; }
+  .bubble {
+    max-width: 85%; padding: 12px 16px; border-radius: 12px;
+    background: var(--accent-soft);
+    font: 15px/23px var(--sans); color: var(--text);
+    white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+
+  .turn-bot { margin-top: 28px; display: flex; flex-direction: column; gap: 16px; }
+  .status {
+    align-self: flex-start; max-width: 100%;
+    margin: 12px 0 -6px -6px; padding: 6px; border-radius: 8px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 14px; line-height: 20px; color: var(--muted); text-align: left;
+  }
+  .status .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--accent); flex: none; }
+  .status.loading .dot { animation: pulse 1s infinite ease-in-out; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  /* tool steps: the tool name; its details expand on click */
+  .steps { margin: 0 0 -4px -8px; display: flex; flex-direction: column; gap: 2px; max-width: calc(100% + 8px); }
+  .step { border-radius: 10px; transition: background .2s; }
+  .step.open { background: var(--fill-1); }
+  .step-head {
+    display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px 0 8px; border-radius: 10px;
+    font-size: 13px; color: var(--muted); transition: background .15s;
+  }
+  .step-head:hover { background: var(--fill-1); }
+  .step.open .step-head:hover { background: none; }
+  .step-head svg.i14 { color: var(--accent); }
+  .step-head .tool { font: 500 12.5px/18px var(--mono); color: var(--text-2); }
+  .step-head svg.chev { width: 12px; height: 12px; color: #a3b0a6; transition: transform .2s; }
+  .step.open .step-head svg.chev { transform: rotate(90deg); }
+  .step-head .spin { display: none; width: 14px; height: 14px; border-radius: 99px; border: 2px solid #dbe7d8; border-top-color: var(--accent); animation: spin .8s linear infinite; }
+  .step.running .step-head .spin { display: inline-block; }
+  .step.running .step-head svg { display: none; }
+  .step.running .step-head { cursor: default; }
+  .step.running .step-head .tool {
+    background: linear-gradient(90deg, var(--text-2) 0 35%, var(--accent) 50%, var(--text-2) 65% 100%);
+    background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: shimmer 1.3s linear infinite;
+  }
+  @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+  .step.enter { animation: step-in .25s ease-out; }
+  @keyframes step-in { from { opacity: 0; transform: translateY(-4px); } }
+  .step.err .step-head .tool, .step.err .step-head svg.i14 { color: var(--danger); }
+  .step-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .25s ease; }
+  .step.open .step-body { grid-template-rows: 1fr; }
+  .step-body > div { overflow: hidden; }
+  .sd { padding: 2px 14px 12px 30px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; line-height: 20px; color: var(--text-2); }
+  .sd-arg { margin-bottom: 4px; color: var(--text); font-weight: 500; }
+  .sd-row { display: flex; align-items: baseline; gap: 14px; }
+  .sd-row .k { flex: 1; min-width: 0; }
+  .sd-row .v { flex: none; font: 12px/20px var(--mono); color: var(--accent-strong); }
+  .sd-none { color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { .step.running .step-head .tool, .caret { animation: none; } .step-body { transition: none; } }
+
+  /* booking form the assistant shows in the chat */
+  .bform {
+    max-width: 560px; padding: 14px; border-radius: 14px; background: var(--page);
+    border: 1px solid var(--line); box-shadow: 0 2px 12px rgba(29, 52, 36, .05);
+    display: flex; flex-direction: column; gap: 12px; transition: opacity .2s;
+  }
+  .bform-head { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text); }
+  .bform-head svg { color: var(--accent); }
+  .bform-head .dur { font-weight: 400; color: var(--muted); }
+  .bslots { display: flex; flex-wrap: wrap; gap: 6px; }
+  .bslot { position: relative; }
+  .bslot input { position: absolute; opacity: 0; pointer-events: none; }
+  .bslot span {
+    display: flex; flex-direction: column; padding: 6px 11px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--line); font-size: 13px; line-height: 18px; color: var(--text);
+    transition: border-color .15s, background .15s, box-shadow .15s;
+  }
+  .bslot span:hover { border-color: #b9cfb6; }
+  .bslot small { font-size: 11.5px; line-height: 15px; color: var(--muted); }
+  .bslot input:checked + span { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+  .bslot input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .bfields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .bfields .wide { grid-column: 1 / -1; }
+  .bfields input:not([type="checkbox"]), .bfields textarea {
+    width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); outline: none;
+    font: 14px/20px var(--sans); color: var(--text); background: var(--page); transition: border-color .15s;
+  }
+  .bfields input:focus, .bfields textarea:focus { border-color: var(--accent); }
+  .bfields textarea { resize: vertical; min-height: 38px; max-height: 120px; }
+  .bcheck { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--text-2); cursor: pointer; }
+  .bcheck input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+  .bfoot { display: flex; align-items: center; gap: 10px; }
+  .bfoot .err { flex: 1; color: var(--danger); font-size: 13px; }
+  .bbtn { margin-left: auto; height: 34px; padding: 0 16px; border-radius: 9px; display: inline-flex; align-items: center; gap: 6px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 600; transition: background .15s; }
+  .bbtn:hover { background: var(--accent-strong); }
+  .bform.sent { opacity: .6; }
+  .bform.sent * { cursor: default !important; }
+  .bform.booked { opacity: 1; }
+  .bform.booked .bbtn { background: var(--accent-strong); }
+
+  /* booking confirmation under the answer */
+  .bconfirm {
+    align-self: flex-start; max-width: 100%; display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px 10px 10px; border-radius: 12px; text-align: left;
+    background: var(--accent-soft); border: 1px solid #cfe0cb; transition: border-color .15s;
+  }
+  .bconfirm:hover { border-color: var(--accent); }
+  .bconfirm .tick { width: 30px; height: 30px; border-radius: 99px; flex: none; display: flex; align-items: center; justify-content: center; background: var(--accent); color: #fff; }
+  .bconfirm .txt { display: flex; flex-direction: column; min-width: 0; }
+  .bconfirm .what { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--text); }
+  .bconfirm .what b { font: 600 13px/20px var(--mono); color: var(--accent-strong); margin-right: 6px; }
+  .bconfirm .when { font-size: 13px; line-height: 18px; color: var(--text-2); }
+
+  .prose { font: 15px/26px var(--sans); color: var(--text); overflow-wrap: anywhere; }
+  .prose p, .prose ul, .prose ol { margin: 0; }
+  .prose > :not(:first-child) { margin-top: 14px; }
+  .prose p { padding: 0 56px 0 4px; }
+  .prose ul, .prose ol { padding: 0 56px 0 28px; }
+  .prose li { padding-left: 6px; }
+  .prose li + li { margin-top: 6px; }
+  .prose p + ul, .prose p + ol { margin-top: 6px; }
+  .prose li::marker { color: var(--accent); font-weight: 600; }
+  .prose strong { font-weight: 600; color: #15221a; }
+  .prose em { font-style: italic; }
+  .caret { display: inline-block; width: 7px; height: 16px; margin-left: 3px; vertical-align: -3px; border-radius: 1px; background: var(--accent); animation: blink 1s steps(2, start) infinite; }
+  @keyframes blink { to { visibility: hidden; } }
+  .prose.error { color: var(--danger); font-family: var(--sans); font-size: 14px; }
+
+  .typing { display: inline-flex; gap: 5px; padding: 8px 4px; }
+  .typing span { width: 6px; height: 6px; border-radius: 99px; background: var(--muted); animation: pulse 1.2s infinite ease-in-out; }
+  .typing span:nth-child(2) { animation-delay: .2s; }
+  .typing span:nth-child(3) { animation-delay: .4s; }
+
+  .spark { height: 46px; }
+  .extra-space { flex-grow: 1; min-height: 24px; }
+
+  /* ── Composer ─────────────────────────────────────────────────────── */
+  .dock { position: sticky; bottom: 0; z-index: 5; padding: 24px 0 20px; background: linear-gradient(rgba(255,255,255,0), var(--page) 24px); }
+  .jump {
+    position: absolute; left: 50%; top: -32px; transform: translateX(-50%);
+    width: 36px; height: 36px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9); border: 1px solid var(--line);
+    box-shadow: 0 2px 8px rgba(29, 52, 36, .08);
+    display: none; align-items: center; justify-content: center; color: var(--text-2);
+  }
+  .jump.show { display: flex; }
+  .composer {
+    position: relative; z-index: 1;
+    padding: 8px; border-radius: 14px;
+    background: var(--page);
+    box-shadow: 0 0 0 1px var(--line), 0 4px 18px rgba(29, 52, 36, 0.06);
+    display: flex; align-items: flex-end; gap: 8px;
+    transition: box-shadow .15s;
+  }
+  .composer:focus-within { box-shadow: 0 0 0 1px var(--accent), 0 4px 18px rgba(29, 52, 36, 0.08); }
+  .composer textarea {
+    flex: 1; resize: none; border: 0; outline: 0; background: transparent;
+    font: 15px/21px var(--sans); color: var(--text);
+    padding: 5.5px 6px; min-height: 32px; max-height: 240px;
+  }
+  .composer textarea::placeholder { color: var(--muted); }
+  .send {
+    width: 32px; height: 32px; border-radius: 8px; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--fill-2); color: var(--muted);
+    transition: background .15s, color .15s;
+  }
+  .send.ready { background: var(--accent); color: #fff; }
+  .send:disabled { cursor: default; }
+  .chin {
+    display: none; justify-content: flex-end;
+    margin: -8px -8px 0; padding: 8px 8px 0; height: 48px;
+    background: var(--page);
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; line-height: 17px; color: var(--muted);
+  }
+  .pill {
+    height: 24px; padding: 0 8px; border-radius: 6px;
+    display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2);
+  }
+  .pill:hover { background: var(--fill-1); }
+  .pill .count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--accent); color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
+  .pill .count:empty { display: none; }
+  #open-panel, #open-book { display: none; }
+
+  /* ── Dataset panel ────────────────────────────────────────────────── */
+  .resize {
+    position: relative; width: 12px; flex: none; cursor: col-resize; touch-action: none; outline: none;
+  }
+  .resize::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 44px;
+    transform: translate(-50%, -50%); border-radius: 99px;
+    background: var(--line); transition: background .15s, height .15s;
+  }
+  .resize:hover::after, .resize:focus-visible::after, body.resizing .resize::after { background: var(--accent); height: 64px; }
+  body.resizing { cursor: col-resize; user-select: none; }
+  body.resizing .panel, body.resizing .chat { pointer-events: none; }
+
+  /* collapse / expand */
+  body:not(.resizing) .panel { transition: width .32s cubic-bezier(.2, .8, .2, 1), opacity .22s, margin .32s, border-width .32s; }
+  .panel.will-collapse { opacity: .45; }
+  .frame.panel-collapsed .panel { width: 0 !important; margin-right: 0; border-width: 0; opacity: 0; pointer-events: none; }
+  .frame.panel-collapsed .resize { display: none; }
+  /* Knowledge-base button in the top-right corner, shown while the panel is collapsed. */
+  /* A sage tab attached to the right edge of the window, holding the illustration. */
+  .panel-tab {
+    position: fixed; z-index: 20; top: 12px; right: 0;
+    width: 84px; height: 72px; padding: 0 6px 0 0; border: 0;
+    border-radius: 20px 0 0 20px;
+    background: linear-gradient(90deg, #e9f1e6 0%, #dbe8d7 100%);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transform: translateX(100%); pointer-events: none;
+    transition: opacity .2s, transform .3s cubic-bezier(.2, .8, .2, 1), width .2s, background .2s;
+  }
+  .frame.panel-collapsed .panel-tab { opacity: 1; transform: none; pointer-events: auto; transition-delay: .12s; }
+  .panel-tab:hover { width: 92px; background: linear-gradient(90deg, #e2ede0 0%, #d0e1cc 100%); }
+  .panel-tab:hover .kb-illus, .panel-tab:hover .bk-illus { transform: scale(1.05); }
+  .panel-tab.book { top: 92px; }
+  .frame.panel-collapsed .panel-tab.book { transition-delay: .18s; }
+
+  /* the bookings illustration: a tilted calendar page with a picked, checked slot and a small clock */
+  .bk-illus { width: 56px; height: 58px; overflow: visible; transition: transform .2s; stroke-linecap: round; stroke-linejoin: round; }
+  .bk-back { fill: #dbe8d7; stroke: #a9c0ac; stroke-width: 1.2; }
+  .bk-body { fill: #f4f8f2; stroke: #557a5c; stroke-width: 1.4; }
+  .bk-head { fill: #a8c2a6; stroke: #557a5c; stroke-width: 1.4; }
+  .bk-ring { fill: none; stroke: #557a5c; stroke-width: 1.8; }
+  .bk-days circle { fill: #b9cdb7; }
+  .bk-pick { fill: #fff; stroke: #557a5c; stroke-width: 1.3; }
+  .bk-check { fill: none; stroke: #557a5c; stroke-width: 1.7; stroke-dasharray: 9; animation: bk-draw 3.6s ease-in-out infinite; }
+  .bk-clock circle { fill: #edf3eb; stroke: #6f9275; stroke-width: 1.3; }
+  .bk-clock path { fill: none; stroke: #557a5c; stroke-width: 1.4; }
+  .bk-clock .m { transform-box: view-box; transform-origin: 10.5px 37.5px; animation: bk-tick 8s steps(12) infinite; }
+  @keyframes bk-draw { 0%, 15% { stroke-dashoffset: 9; } 35%, 100% { stroke-dashoffset: 0; } }
+  @keyframes bk-tick { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .bk-check, .bk-clock .m { animation: none; } }
+  .panel-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
+
+  /* the illustration: a tilted bucket holding stacked cards, keywords rising out of it */
+  .kb-illus { width: 58px; height: 60px; overflow: visible; transition: transform .2s; stroke-linecap: round; stroke-linejoin: round; }
+  .kb-handle { fill: none; stroke: #a9c0ac; stroke-width: 1.5; }
+  .kb-opening { fill: #a8c2a6; stroke: #557a5c; stroke-width: 1.4; }
+  .kb-cards rect { fill: #fff; stroke: #557a5c; stroke-width: 1.3; }
+  .kb-cards path { fill: none; stroke: #9cb79f; stroke-width: 1.2; }
+  .kb-body { fill: #f4f8f2; stroke: #557a5c; stroke-width: 1.4; }
+  .kb-band { fill: none; stroke: #8fae94; stroke-width: 1.2; }
+  .kb-rim { fill: none; stroke: #557a5c; stroke-width: 1.6; }
+  .kb-words rect { fill: #edf3eb; stroke: #6f9275; stroke-width: 1.2; }
+  .kb-words circle { fill: #8fae94; }
+  .kb-words > * { transform-box: fill-box; animation: kw-float 3.2s ease-in-out infinite; }
+  .kb-words .w2 { animation-delay: .5s; }
+  .kb-words .w3 { animation-delay: 1s; }
+  .kb-words .w4 { animation-delay: .25s; }
+  .kb-words .w5 { animation-delay: .75s; }
+  .panel-tab:hover .kb-words > * { animation-duration: 1.4s; }
+  @keyframes kw-float { 0%, 100% { transform: translateY(0); opacity: 1; } 50% { transform: translateY(-2px); opacity: .75; } }
+  @media (prefers-reduced-motion: reduce) { .kb-words > * { animation: none; } }
+  .panel-tab .count {
+    position: absolute; bottom: 6px; right: 10px;
+    min-width: 15px; height: 15px; padding: 0 4px; border-radius: 99px; border: 2px solid #dbe8d7;
+    box-sizing: content-box; background: var(--accent); color: #fff; font: 600 10px/15px var(--sans); text-align: center;
+  }
+  .panel-tab .count:empty { display: none; }
+  .panel-tab.ping .count { animation: ping 1s ease-out 2; }
+  @keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(111, 146, 117, .5); } 100% { box-shadow: 0 0 0 10px rgba(111, 146, 117, 0); } }
+  #collapse-panel { width: 28px; height: 28px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
+  #collapse-panel:hover { background: var(--fill-2); color: var(--text); }
+
+  .panel {
+    width: 560px; flex: none; margin: 8px 8px 8px 0;
+    border-radius: 10px; overflow: hidden;
+    background: var(--panel); border: 1px solid var(--line);
+    display: flex; flex-direction: column;
+  }
+  .panel-head {
+    flex: none; padding: 10px 10px 10px 16px; background: var(--panel-head);
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .panel-head .titles { flex: 1; min-width: 0; }
+  .views { display: flex; gap: 4px; min-width: 0; }
+  .views button {
+    height: 30px; padding: 0 10px; border-radius: 8px; min-width: 0;
+    display: inline-flex; align-items: center; gap: 6px; flex-shrink: 1;
+    font: 600 14px/20px var(--sans); color: var(--muted); white-space: nowrap;
+    transition: color .15s, background .15s, box-shadow .15s;
+  }
+  .views button > span:first-child { overflow: hidden; text-overflow: ellipsis; }
+  .views button:hover { color: var(--text-2); background: var(--fill-1); }
+  .views button[aria-selected="true"] { color: var(--text); background: var(--page); box-shadow: 0 1px 2px rgba(29, 52, 36, .10), 0 0 0 1px var(--line); }
+  .views .count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--accent); color: #fff; font-size: 11px; line-height: 18px; text-align: center; flex: none; }
+  .views .count:empty { display: none; }
+  .panel[data-view="book"] .embed-btn { display: none !important; }
+  .seg { position: relative; display: inline-flex; padding: 2px; border-radius: 8px; background: var(--fill-2); }
+  .seg button { position: relative; z-index: 1; height: 26px; padding: 0 10px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--muted); transition: color .25s; }
+  .seg button[aria-pressed="true"] { color: var(--accent-strong); }
+  .seg .thumb {
+    position: absolute; top: 2px; bottom: 2px; left: 2px; right: 50%;
+    border-radius: 6px; background: var(--page);
+    box-shadow: 0 1px 2px rgba(29, 52, 36, .14), 0 0 0 1px rgba(111, 146, 117, .12);
+  }
+  .panel-body { overflow-x: hidden; }
+  .embed-btn {
+    height: 30px; padding: 0 12px; border-radius: 8px;
+    display: none; align-items: center; gap: 7px;
+    background: var(--accent); color: #fff; font-size: 13px; font-weight: 600;
+    box-shadow: 0 1px 2px rgba(29, 52, 36, .15);
+    transition: background .15s, transform .1s;
+  }
+  .embed-btn.show { display: inline-flex; animation: pop .18s ease-out; }
+  .embed-btn:hover { background: var(--accent-strong); }
+  .embed-btn:active { transform: scale(.97); }
+  .embed-btn .n { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: rgba(255,255,255,.22); font-size: 11px; line-height: 18px; text-align: center; }
+  .embed-btn .n:empty { display: none; }
+  .embed-btn.busy { pointer-events: none; opacity: .85; }
+  .embed-btn.busy svg { animation: spin .9s linear infinite; }
+  .embed-btn.done { background: var(--accent-strong); }
+  .embed-btn.failed { background: var(--danger); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pop { from { transform: scale(.9); opacity: 0; } }
+  #close-panel { display: none; width: 28px; height: 28px; border-radius: 7px; align-items: center; justify-content: center; color: var(--text-2); }
+  #close-panel:hover { background: var(--fill-1); }
+
+
+  .panel-body { flex: 1; overflow-y: auto; padding: 8px 16px 24px; scrollbar-width: thin; scrollbar-color: #d5ddd4 transparent; }
+  .kb-section { margin-top: 18px; }
+  /* Table title: a sage band that starts strong on the left and dissolves to the right. */
+  .kb-section h3 {
+    margin: 0 0 8px; padding: 7px 10px 7px 12px; min-height: 34px;
+    display: flex; align-items: center; gap: 8px;
+    border-radius: 8px;
+    background: linear-gradient(90deg, #d6e5d3 0%, #e4eee1 30%, rgba(237, 243, 235, .55) 65%, rgba(237, 243, 235, 0) 100%);
+    font: 650 12.5px/18px var(--sans); color: #34573c; text-transform: uppercase; letter-spacing: .06em;
+  }
+  .kb-section.removing h3 { background: linear-gradient(90deg, #f3dcd7 0%, #f8e9e6 30%, rgba(250, 238, 235, .5) 65%, rgba(250, 238, 235, 0) 100%); }
+  table.kb { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--page); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; table-layout: fixed; }
+  table.kb th {
+    text-align: left; padding: 7px 10px; background: var(--panel-head);
+    font-size: 11.5px; line-height: 16px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+    border-bottom: 1px solid var(--line);
+  }
+  table.kb th.c-topic { width: 32%; }
+  table.kb td { padding: 9px 10px; vertical-align: top; font-size: 13px; line-height: 19px; color: var(--text-2); border-bottom: 1px solid var(--line); transition: background .25s, box-shadow .25s; }
+  table.kb tr:last-child td { border-bottom: 0; }
+  td.c-topic { color: var(--text); font-weight: 500; }
+  td.c-topic .id { display: block; margin-top: 2px; font: 11px/15px var(--mono); color: var(--muted); font-weight: 400; overflow-wrap: anywhere; }
+  .hits { display: none; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .score { display: inline-block; height: 18px; padding: 0 7px; border-radius: 99px; background: var(--accent); color: #fff; font: 600 11px/18px var(--sans); }
+  .score.kw { background: var(--page); color: var(--accent-strong); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 500; }
+  tr.in-context td { background: var(--hl) !important; color: var(--text); }
+  tr.in-context .hits { display: flex; }
+
+  .panel-empty { padding: 24px 0; color: var(--muted); text-align: center; }
+
+  /* row states: a soft tint for the whole row + a one-word chip (no side bars) */
+  table.kb tr td { transition: background .3s, color .3s; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 3px; width: fit-content;
+    height: 18px; margin-bottom: 4px; padding: 0 7px; border-radius: 99px;
+    font: 600 10.5px/18px var(--sans); letter-spacing: .03em; text-transform: uppercase; text-decoration: none;
+  }
+  td.c-topic .chip { display: flex; }
+  .chip-new { background: #dfeedd; color: #3f6e48; }
+  .chip-edited { background: #f2ead6; color: #86672c; }
+  .chip-deleted { background: #f6e1dd; color: #a4483d; }
+  .chip-indexing { background: #e9efe8; color: var(--text-2); }
+  .chip-indexing::before { content: ""; width: 6px; height: 6px; border-radius: 99px; background: var(--accent); animation: pulse 1s infinite ease-in-out; }
+  tr.st-indexing td { background: #f8fbf7; }
+  .chip-embedded { background: var(--accent); color: #fff; animation: chip-in .35s ease-out; }
+  tr.st-new td { background: #f5faf4; }
+  tr.st-edited td { background: #fcf9f1; }
+  tr.st-deleted td { background: #fdf7f6; }
+  tr.st-deleted .t, tr.st-deleted .id { color: #b5a9a6; text-decoration: line-through; text-decoration-color: rgba(164, 72, 61, .45); }
+  tr.st-embedded td { animation: row-flash 1.8s ease-out; }
+  tr.st-embedded.settle .chip-embedded { animation: chip-out .4s ease-in forwards; }
+  @keyframes row-flash { 0% { background: #dbead8; } 100% { background: transparent; } }
+  @keyframes chip-in { from { transform: scale(.7); opacity: 0; } }
+  @keyframes chip-out { to { opacity: 0; transform: scale(.85); } }
+  td.c-topic .t { display: block; }
+
+  /* hover actions: a small floating toolbar at the row's top-right */
+  td.c-text { position: relative; }
+  .row-actions {
+    position: absolute; top: 6px; right: 6px;
+    display: flex; gap: 2px; padding: 2px; border-radius: 8px;
+    background: rgba(255, 255, 255, .96); border: 1px solid var(--line);
+    box-shadow: 0 2px 8px rgba(29, 52, 36, .10);
+    opacity: 0; transform: translateY(-2px); pointer-events: none;
+    transition: opacity .15s, transform .15s;
+  }
+  tr:hover .row-actions, .row-actions:focus-within { opacity: 1; transform: none; pointer-events: auto; }
+  tr.st-deleted .row-actions { opacity: 1; transform: none; pointer-events: auto; background: transparent; border-color: transparent; box-shadow: none; }
+  .act { width: 26px; height: 26px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-2); }
+  .act:hover { background: var(--accent-soft); color: var(--accent-strong); }
+  .act[title="Delete"]:hover { background: #f6e1dd; color: var(--danger); }
+  svg.i14 { width: 14px; height: 14px; }
+  svg.i10 { width: 10px; height: 10px; stroke-width: 2.4; }
+
+
+  .kb-section h3 .label { min-width: 0; }
+  .table-del {
+    width: 22px; height: 22px; border-radius: 6px; margin-left: -2px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--muted); opacity: 0; transition: opacity .15s;
+  }
+  .kb-section:hover .table-del, .table-del:focus-visible { opacity: 1; }
+  .table-del:hover { background: var(--fill-2); color: var(--danger); }
+  .kb-section.removing h3 .label { text-decoration: line-through; text-decoration-color: rgba(164, 72, 61, .45); color: #b5a9a6; }
+  .kb-section h3 .chip { margin: 0; }
+  .kb-section.removing .table-del { opacity: 1; color: var(--accent-strong); }
+  .kb-section.removing table.kb { opacity: .55; }
+
+  tr.add-row td { padding: 0; }
+  .add-btn {
+    width: 100%; height: 34px; padding: 0 10px; display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--muted); text-align: left;
+    transition: background .15s, color .15s;
+  }
+  .add-btn:hover { background: var(--accent-soft); color: var(--accent-strong); }
+  tr.editor td { background: var(--accent-soft); padding: 8px; }
+  .editor textarea, .table-name {
+    display: block; width: 100%; max-width: 100%; resize: none; overflow-y: auto;
+    border: 1px solid var(--line); border-radius: 6px; background: var(--page);
+    padding: 6px 8px; font: 13px/19px var(--sans); color: var(--text); outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .editor .ed-q { max-height: 120px; }
+  .editor .ed-a { max-height: 200px; }
+  .editor textarea { scrollbar-width: thin; scrollbar-color: #cfd9cf transparent; }
+  .editor textarea:focus, .table-name:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(111, 146, 117, .15); }
+  .editor-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+  .btn-sm { height: 26px; padding: 0 10px; border-radius: 6px; font-size: 12.5px; font-weight: 600; }
+  .btn-sm.primary { background: var(--accent); color: #fff; }
+  .btn-sm.primary:hover { background: var(--accent-strong); }
+  .btn-sm.primary:disabled { opacity: .45; cursor: default; }
+  .btn-sm.ghost { color: var(--text-2); }
+  .btn-sm.ghost:hover { background: var(--fill-2); }
+
+  /* bookings view */
+  .bk-list { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  .bk-card {
+    padding: 10px 12px; border-radius: 10px; background: var(--page); border: 1px solid var(--line);
+    font-size: 13px; line-height: 19px; color: var(--text-2); transition: background .25s, border-color .25s;
+  }
+  .bk-card.hl { background: var(--hl); border-color: #c5d9c1; }
+  .bk-card.fresh { animation: row-flash 1.8s ease-out; }
+  .bk-card .top { display: flex; align-items: center; gap: 6px; }
+  .bk-card .top svg { color: var(--accent); }
+  .bk-card .ref { font: 600 12px/19px var(--mono); color: var(--accent-strong); }
+  .bk-card .when { margin-left: auto; font-weight: 600; color: var(--text); }
+  .bk-card .who { color: var(--muted); overflow-wrap: anywhere; }
+  .bk-week { display: flex; align-items: center; gap: 4px; margin: 16px 0 6px; font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
+  .bk-week .svc { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 400; color: var(--muted); }
+  .bk-week button { width: 26px; height: 26px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-2); }
+  .bk-week button:hover:not(:disabled) { background: var(--fill-2); }
+  .bk-week button:disabled { opacity: .3; cursor: default; }
+  svg.flip { transform: scaleX(-1); }
+  .bk-grid { background: var(--page); border: 1px solid var(--line); border-radius: 8px; }
+  .bk-day { display: grid; grid-template-columns: 58px 1fr; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  .bk-day:last-child { border-bottom: 0; }
+  .bk-day .d { display: flex; flex-direction: column; font-size: 11.5px; line-height: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+  .bk-day .d b { font-size: 15px; line-height: 20px; color: var(--text); letter-spacing: 0; }
+  .bk-day .times { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 4px; }
+  .bk-day.off .times { align-items: center; font-size: 12.5px; color: var(--muted); }
+  .bk-day.off .d b { color: var(--muted); }
+  .t-chip {
+    height: 26px; padding: 0 7px; border-radius: 7px; border: 1px solid var(--line); background: var(--page);
+    display: inline-flex; align-items: center; gap: 5px; font: 12px/24px var(--mono); color: var(--text-2);
+    transition: border-color .15s, background .15s;
+  }
+  .t-chip:hover { border-color: var(--accent); }
+  .t-chip.hl { background: var(--hl); border-color: #b2cbae; color: var(--text); }
+  .t-chip.mine { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .t-chip.mine.hl { box-shadow: 0 0 0 3px rgba(111, 146, 117, .3); }
+  .bk-note { padding: 18px 0; text-align: center; color: var(--muted); font-size: 13px; }
+
+  .new-table {
+    width: 100%; margin-top: 18px; height: 40px; border-radius: 8px;
+    border: 1.5px dashed #cfd9cf; color: var(--muted);
+    display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .new-table:hover { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
+  .table-name { max-width: 280px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+
+  /* ── Responsive ───────────────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .panel {
+      position: fixed; z-index: 50; inset: 0; width: auto !important; margin: 0; border-radius: 0; border: 0;
+      transform: translateX(100%); transition: transform .22s ease;
+    }
+    .frame.panel-open .panel { transform: none; }
+    .resize, .panel-tab, #collapse-panel { display: none !important; }
+    .frame.panel-collapsed .panel { width: auto !important; opacity: 1; pointer-events: auto; }
+    #close-panel, #open-panel, #open-book { display: inline-flex; }
+    .dock { padding-bottom: 0; }
+    .chin { display: flex; }
+  }
+  @media (max-width: 640px) {
+    .column { padding: 16px 16px 0; }
+    .prose p, .prose ul, .prose ol { padding-right: 8px; }
+    .column.empty .composer textarea { min-height: 64px; }
+    .chips button { height: 36px; font-size: 13.5px; }
+    .bfields { grid-template-columns: 1fr; }
+    .panel-head { gap: 8px; padding-left: 10px; }
+    .views { gap: 2px; }
+    .views button { padding: 0 8px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-tooth" viewBox="0 0 24 24"><path d="M7 3c-2.5 0-4 2-4 4.5 0 3 1.5 4.5 2 7 .5 2.5 1 6.5 2.5 6.5s1.5-3 2-5 1-3 2.5-3 2 1 2.5 3 .5 5 2 5 2-4 2.5-6.5 2-4 2-7C21 5 19.5 3 17 3c-2 0-3 1-5 1S9 3 7 3z"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+  <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14M19 12l-7 7-7-7"/></symbol>
+  <symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M10 4v16"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-collapse" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16M8 10l2 2-2 2"/></symbol>
+  <symbol id="i-arrow-ne" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></symbol>
+  <symbol id="i-kb" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v6.5c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8V5.5"/><path d="M4.5 12v6.5c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8V12"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+  <symbol id="i-vector" viewBox="0 0 24 24"><circle cx="5.5" cy="7" r="2.2"/><circle cx="18.5" cy="5.5" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.7 6.8l8.6-1.1M6.6 9l4.3 7.5M17.5 7.6 13 16.5"/></symbol>
+  <symbol id="i-quote" viewBox="0 0 24 24"><path d="M9.5 6.5H6A1.5 1.5 0 0 0 4.5 8v3A1.5 1.5 0 0 0 6 12.5h3.5V9.5c0 4-1.5 6.5-4.5 8M19.5 6.5H16A1.5 1.5 0 0 0 14.5 8v3a1.5 1.5 0 0 0 1.5 1.5h3.5V9.5c0 4-1.5 6.5-4.5 8"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-form" viewBox="0 0 24 24"><rect x="4.5" y="3.5" width="15" height="17" rx="2.5"/><path d="M8 8.5h8M8 12.5h8M8 16.5h4.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></symbol>
+</svg>
+
+<div class="frame" id="frame">
+  <!-- Chat -->
+  <section class="chat">
+    <div class="scroller" id="scroller">
+      <div class="column empty" id="column">
+        <div class="transcript" id="transcript" role="feed" aria-label="Chat messages">
+        </div>
+
+        <div class="spark"></div>
+        <div class="extra-space"></div>
+
+        <div class="dock">
+          <button class="jump" id="jump" aria-label="Scroll to bottom"><svg class="i i20"><use href="#i-arrow-down"/></svg></button>
+          <form class="composer" id="composer">
+            <textarea id="input" rows="1" maxlength="1000" placeholder="Ask a question…" aria-label="Message"></textarea>
+            <button class="send" id="send" type="submit" aria-label="Send message"><svg class="i i20"><use href="#i-arrow-up"/></svg></button>
+          </form>
+          <div class="chin">
+            <button class="pill" id="open-panel" type="button"><svg class="i"><use href="#i-table"/></svg>Dataset<span class="count" id="ctx-count"></span></button>
+            <button class="pill" id="open-book" type="button"><svg class="i"><use href="#i-calendar"/></svg>Bookings<span class="count" id="book-pill-count"></span></button>
+          </div>
+        </div>
+        <div class="chips" id="chips">
+          <button type="button">How much is teeth whitening?<svg class="i"><use href="#i-arrow-ne"/></svg></button>
+          <button type="button">Do you accept insurance?<svg class="i"><use href="#i-arrow-ne"/></svg></button>
+          <button type="button">What should I bring to my first visit?<svg class="i"><use href="#i-arrow-ne"/></svg></button>
+          <button type="button">Quelles sont vos heures d'ouverture ?<svg class="i"><use href="#i-arrow-ne"/></svg></button>
+          <button type="button">J'ai très mal à une dent, que faire ?<svg class="i"><use href="#i-arrow-ne"/></svg></button>
+          <button type="button">Quelle est votre politique d'annulation ?<svg class="i"><use href="#i-arrow-ne"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <button class="panel-tab" id="panel-tab" type="button" aria-label="Show knowledge base" title="Show knowledge base">
+    <svg class="kb-illus" viewBox="0 -2 48 50" aria-hidden="true">
+      <g transform="rotate(-12 24 30)">
+        <path class="kb-handle" d="M10.5 24.5C10.5 9 37.5 9 37.5 24.5" />
+        <g class="kb-words">
+          <rect class="w1" x="6" y="2.5" width="11" height="4.6" rx="2.3" />
+          <rect class="w2" x="19.5" y="-1" width="9.5" height="4.6" rx="2.3" />
+          <rect class="w3" x="31" y="3.5" width="11" height="4.6" rx="2.3" />
+          <circle class="w4" cx="16" cy="10.5" r="1.1" />
+          <circle class="w5" cx="34" cy="10" r="1" />
+        </g>
+        <ellipse class="kb-opening" cx="24" cy="24" rx="13" ry="4" />
+        <g class="kb-cards">
+          <g transform="rotate(-9 20 21)">
+            <rect x="14.5" y="12.5" width="11" height="16" rx="1.6" />
+            <path d="M17 16.5h6M17 19.5h6M17 22.5h4" />
+          </g>
+          <g transform="rotate(8 27 20)">
+            <rect x="21.5" y="11" width="11" height="17" rx="1.6" />
+            <path d="M24 15h6M24 18h6M24 21h4" />
+          </g>
+        </g>
+        <path class="kb-body" d="M11 24 L14.5 41 A9.5 2.8 0 0 0 33.5 41 L37 24 A13 4 0 0 1 11 24 Z" />
+        <path class="kb-band" d="M12.9 32.5 A11.4 3.4 0 0 0 35.1 32.5" />
+        <path class="kb-rim" d="M37 24 A13 4 0 0 1 11 24" />
+      </g>
+    </svg>
+    <span class="count" id="tab-count"></span>
+  </button>
+  <button class="panel-tab book" id="book-tab" type="button" aria-label="Show bookings" title="Show bookings">
+    <svg class="bk-illus" viewBox="0 -2 48 50" aria-hidden="true">
+      <g transform="rotate(7 26 24)">
+        <rect class="bk-back" x="13" y="11.5" width="29" height="28" rx="4.5" />
+        <rect class="bk-body" x="10" y="8.5" width="29" height="28" rx="4.5" />
+        <path class="bk-head" d="M10 16.5V13a4.5 4.5 0 0 1 4.5-4.5h20A4.5 4.5 0 0 1 39 13v3.5Z" />
+        <path class="bk-ring" d="M16.5 5.5v6M32.5 5.5v6" />
+        <g class="bk-days">
+          <circle cx="15.5" cy="21.5" r="1.3" /><circle cx="21.5" cy="21.5" r="1.3" /><circle cx="27.5" cy="21.5" r="1.3" /><circle cx="33.5" cy="21.5" r="1.3" />
+          <circle cx="15.5" cy="26.5" r="1.3" /><circle cx="33.5" cy="26.5" r="1.3" />
+          <circle cx="21.5" cy="31.5" r="1.3" /><circle cx="27.5" cy="31.5" r="1.3" /><circle cx="33.5" cy="31.5" r="1.3" />
+        </g>
+        <rect class="bk-pick" x="18" y="23.2" width="13" height="6.6" rx="2.2" />
+        <path class="bk-check" d="M21.7 26.6l1.8 1.7 3.6-3.5" />
+      </g>
+      <g class="bk-clock">
+        <circle cx="10.5" cy="37.5" r="7" />
+        <path d="M10.5 37.5v-3.6" />
+        <path class="m" d="M10.5 37.5h3.4" />
+      </g>
+    </svg>
+    <span class="count" id="book-tab-count"></span>
+  </button>
+  <div class="resize" id="resize" role="separator" aria-orientation="vertical" aria-label="Resize dataset panel" tabindex="0"></div>
+
+  <!-- Dataset -->
+  <aside class="panel" id="panel" data-view="kb" aria-label="Knowledge base and bookings">
+    <div class="panel-head">
+      <div class="titles views" role="tablist">
+        <button type="button" role="tab" data-view="kb" aria-selected="true"><span id="view-kb">Knowledge base</span></button>
+        <button type="button" role="tab" data-view="book" aria-selected="false"><span id="view-book">Bookings</span><span class="count" id="bk-count"></span></button>
+      </div>
+      <button class="embed-btn" id="embed" type="button"><svg class="i"><use href="#i-sparkle"/></svg><span id="embed-label">Embed</span><span class="n" id="embed-n"></span></button>
+      <div class="seg" id="seg" role="group" aria-label="Language">
+        <span class="thumb" id="seg-thumb" aria-hidden="true"></span>
+        <button type="button" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="fr" aria-pressed="false">FR</button>
+      </div>
+      <button id="collapse-panel" type="button" aria-label="Collapse panel" title="Collapse"><svg class="i"><use href="#i-collapse"/></svg></button>
+      <button id="close-panel" type="button" aria-label="Close dataset"><svg class="i"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="panel-body" id="kb"><div class="panel-empty">Loading dataset…</div></div>
+    <div class="panel-body" id="bk" hidden></div>
+  </aside>
+</div>
+
+<script>
+  const CATEGORY_LABELS = {
+    clinic: { en: "Clinic", fr: "Clinique" },
+    services: { en: "Services & prices", fr: "Services et tarifs" },
+    faq: { en: "FAQ", fr: "FAQ" },
+    policies: { en: "Policies", fr: "Politiques" },
+    team: { en: "Team", fr: "Équipe" },
+  };
+  const T = {
+    en: { topic: "Topic", content: "Content", add: "Add question", newTable: "New table", q: "Question", a: "Answer", tableName: "Table name", save: "Add", cancel: "Cancel", embed: "Embed", embedding: "Embedding…", indexing: "Indexing…", embedded: "Embedded", retry: "Retry", saveEdit: "Save", chipNew: "New", chipEdited: "Edited", chipDeleted: "Deleted",
+      kbTitle: "Knowledge base", bkTitle: "Bookings", full: "Full", closed: "Closed", loadFailed: "Could not load times.", prevWeek: "Previous week", nextWeek: "Next week" },
+    fr: { topic: "Sujet", content: "Contenu", add: "Ajouter une question", newTable: "Nouvelle table", q: "Question", a: "Réponse", tableName: "Nom de la table", save: "Ajouter", cancel: "Annuler", embed: "Intégrer", embedding: "Intégration…", indexing: "Indexation…", embedded: "Intégré", retry: "Réessayer", saveEdit: "Enregistrer", chipNew: "Nouveau", chipEdited: "Modifié", chipDeleted: "Supprimé",
+      kbTitle: "Connaissances", bkTitle: "Rendez-vous", full: "Complet", closed: "Fermé", loadFailed: "Impossible de charger les plages.", prevWeek: "Semaine précédente", nextWeek: "Semaine suivante" },
+  };
+  // Booking form, in the language the assistant chose for it.
+  const FT = {
+    en: { name: "Full name", phone: "Phone", email: "Email", first: "First visit at the clinic", notes: "Notes (optional)", book: "Book", booked: "Booked",
+      pick: "Pick a time.", badName: "Enter your full name.", badPhone: "Enter a valid phone number.", badEmail: "Enter a valid email.",
+      request: "Booking request", at: "at", with: "with", for: "for" },
+    fr: { name: "Nom complet", phone: "Téléphone", email: "Courriel", first: "Première visite à la clinique", notes: "Notes (facultatif)", book: "Réserver", booked: "Réservé",
+      pick: "Choisissez une plage horaire.", badName: "Entrez votre nom complet.", badPhone: "Entrez un numéro de téléphone valide.", badEmail: "Entrez un courriel valide.",
+      request: "Demande de réservation", at: "à", with: "avec", for: "pour" },
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const frame = $("frame"), scroller = $("scroller"), transcript = $("transcript");
+  const input = $("input"), sendBtn = $("send"), kbEl = $("kb"), bkEl = $("bk");
+
+  const rand = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
+  // Identifies this page's own rows in Vectorize. Like the chat history, a reload starts a new session.
+  const sessionId = rand(16);
+
+  // Conversation lives in page memory only; a reload starts fresh.
+  const history = [];
+  const turns = [];          // { steps, stepsEl, stepEls }: the tool calls of each answer
+  let entries = [];          // shared base data from /knowledge
+  // Rows added or edited in this session: { id, category, title, text, lang, state, edited?, replaces?, embeddedOnce?, justEmbedded? }
+  // state: "pending" (not embedded yet) | "embedded" | "removing"; replaces: the shared vector id it overrides.
+  const userRows = [];
+  const userTables = [];        // { key, label }
+  const baseState = new Map();  // shared vector id ("services-whitening-en") -> "removing" | "hidden"
+  const removedOwn = new Set();  // this session's deleted vectors, filtered from search until Vectorize drops them
+  const tableState = new Map(); // category key -> "removing" | "hidden"
+  let editing = null;           // category key whose add-row editor is open, or "__new_table__"
+  let editingRow = null;        // vector id of the row being edited in place
+  let kbLang = "en";
+  let activeTurn = -1;
+  let activeStep = null;        // one step of the active turn, or null for all of them
+  let busy = false;
+  let panelView = "kb";         // "kb" | "book"
+  const bookings = [];          // appointments booked in this chat, like the history kept in page memory
+  let catalog = { services: {}, dentists: [] };
+  // Bookings view: the service and week shown, the loaded free times, and what the active turn touched.
+  const bk = { service: "checkup", week: 0, key: "", data: null, loading: "", failed: "", focus: null, focusSig: "", scroll: false };
+
+  /* ── Dataset panel ─────────────────────────────────────────────── */
+  function el(tag, props = {}, ...children) {
+    const node = Object.assign(document.createElement(tag), props);
+    for (const c of children) if (c != null) node.append(c);
+    return node;
+  }
+  const icon = (name, cls = "i") => {
+    const span = document.createElement("span");
+    span.style.display = "contents";
+    span.innerHTML = `<svg class="${cls}"><use href="#i-${name}"/></svg>`;
+    return span;
+  };
+  // Grows with the text up to the CSS max-height, then the textarea scrolls.
+  function autoGrow(ta) { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + 2 + "px"; }
+
+  const tableRemoving = (key) => tableState.get(key) === "removing";
+  const vid = (r) => `${r.id}-${r.lang}`;
+
+  function categories() {
+    const keys = [...new Set(entries.map((e) => e.category))];
+    return [
+      ...keys.map((key) => ({ key, label: CATEGORY_LABELS[key]?.[kbLang] || key, base: true })),
+      ...userTables,
+    ].filter((c) => tableState.get(c.key) !== "hidden");
+  }
+
+  // Shared rows in table order (a session edit takes the shared row's place), then rows added in this session.
+  function rowsFor(cat) {
+    const rows = [];
+    for (const e of entries.filter((e) => e.category === cat)) {
+      const v = `${e.id}-${kbLang}`;
+      const override = userRows.find((r) => r.replaces === v);
+      if (override) rows.push(override);
+      else if (baseState.get(v) !== "hidden") rows.push({ id: e.id, category: cat, title: e.title[kbLang], text: e[kbLang], lang: kbLang, base: true });
+    }
+    rows.push(...userRows.filter((r) => r.category === cat && r.lang === kbLang && !r.replaces));
+    return rows;
+  }
+
+  function rowStatus(r) {
+    if (tableRemoving(r.category)) return "deleted";
+    if (r.base) return baseState.get(vid(r)) === "removing" ? "deleted" : "";
+    if (r.state === "removing") return "deleted";
+    if (r.state === "pending") return r.edited ? "edited" : "new";
+    if (r.indexing) return "indexing";
+    return r.justEmbedded ? "embedded" : "";
+  }
+
+  function actionButton(name, title, onClick) {
+    const b = el("button", { className: "act", type: "button", title });
+    b.append(icon(name, "i i14"));
+    b.onclick = onClick;
+    return b;
+  }
+
+  function rowEl(r) {
+    if (editingRow === vid(r)) return editorRow(r.category, r);
+    const t = T[kbLang];
+    const status = rowStatus(r);
+    const tr = el("tr", { id: `row-${r.id}`, className: status ? `st-${status}` : "" });
+    const topic = el("td", { className: "c-topic" });
+    const chip = { new: t.chipNew, edited: t.chipEdited, deleted: t.chipDeleted, indexing: t.indexing, embedded: t.embedded }[status];
+    if (chip) topic.append(el("span", { className: `chip chip-${status}` }, status === "embedded" ? icon("check", "i i10") : null, chip));
+    topic.append(el("span", { className: "t", textContent: r.title }), el("span", { className: "id", textContent: vid(r) }), el("span", { className: "hits" }));
+
+    const content = el("td", { className: "c-text" }, el("span", { className: "t", textContent: r.text }));
+    if (!tableRemoving(r.category)) {
+      const acts = el("div", { className: "row-actions" });
+      if (status === "deleted") acts.append(actionButton("undo", "Undo", () => toggleRemove(r)));
+      else {
+        acts.append(actionButton("pen", "Edit", () => { editing = null; editingRow = vid(r); renderKnowledge(); }));
+        if (status === "edited") acts.append(actionButton("undo", "Discard changes", () => discardEdit(r)));
+        else acts.append(actionButton("trash", "Delete", () => toggleRemove(r)));
+      }
+      content.append(acts);
+    }
+    tr.append(topic, content);
+    return tr;
+  }
+
+  // One editor for both adding (row = undefined) and editing an existing row in place.
+  function editorRow(cat, row) {
+    const t = T[kbLang];
+    const q = el("textarea", { className: "ed-q", rows: 1, placeholder: t.q, maxLength: 200, value: row?.title || "" });
+    const a = el("textarea", { className: "ed-a", rows: 2, placeholder: t.a, maxLength: 1500, value: row?.text || "" });
+    const save = el("button", { className: "btn-sm primary", type: "button", textContent: row ? t.saveEdit : t.save, disabled: true });
+    const cancel = el("button", { className: "btn-sm ghost", type: "button", textContent: t.cancel });
+    const sync = () => {
+      const title = q.value.trim(), text = a.value.trim();
+      save.disabled = !title || !text || (!!row && title === row.title && text === row.text);
+    };
+    const close = () => { editing = null; editingRow = null; renderKnowledge(); };
+    const submit = () => {
+      if (save.disabled) return;
+      const title = q.value.trim(), text = a.value.trim();
+      if (!row) {
+        userRows.push({ id: `s-${sessionId}-${rand(8)}`, category: cat, title, text, lang: kbLang, state: "pending" });
+        updateEmbedButton();
+        openEditor(cat); // keep adding rows to the same table
+        return;
+      }
+      if (row.base) {
+        // Your own copy replaces the shared row for this session once embedded.
+        userRows.push({ id: `s-${sessionId}-${rand(8)}`, category: cat, title, text, lang: row.lang, state: "pending", edited: true, replaces: vid(row), original: { title: row.title, text: row.text } });
+      } else if (row.state === "pending" && !row.edited) {
+        Object.assign(row, { title, text });
+      } else {
+        Object.assign(row, { original: row.original || { title: row.title, text: row.text }, title, text, state: "pending", edited: true });
+      }
+      editingRow = null;
+      renderKnowledge();
+      renderBookings();
+      viewLabels();
+      updateEmbedButton();
+    };
+    for (const ta of [q, a]) {
+      ta.addEventListener("input", () => { autoGrow(ta); sync(); });
+      ta.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") close();
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); }
+        if (e.key === "Enter" && !e.shiftKey && ta === q) { e.preventDefault(); a.focus(); }
+      });
+    }
+    save.onclick = submit;
+    cancel.onclick = close;
+    requestAnimationFrame(() => { autoGrow(q); autoGrow(a); });
+    return el("tr", { className: "editor", id: row ? `row-${row.id}` : "" },
+      el("td", {}, q),
+      el("td", {}, a, el("div", { className: "editor-actions" }, cancel, save)),
+    );
+  }
+
+  function openEditor(cat) {
+    editing = cat;
+    editingRow = null;
+    renderKnowledge();
+    kbEl.querySelector("tr.editor")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
+  function newTableForm() {
+    const t = T[kbLang];
+    const name = el("input", { className: "table-name", placeholder: t.tableName, maxLength: 40 });
+    const done = () => {
+      const label = name.value.trim();
+      if (!label) { editing = null; renderKnowledge(); return; }
+      const key = `t-${label.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || rand(6)}`;
+      if (!categories().some((c) => c.key === key)) userTables.push({ key, label });
+      tableState.delete(key);
+      openEditor(key);
+    };
+    name.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); done(); }
+      if (e.key === "Escape") { editing = null; renderKnowledge(); }
+    });
+    name.addEventListener("blur", () => { if (!name.value.trim()) { editing = null; renderKnowledge(); } });
+    return el("section", { className: "kb-section" }, el("h3", {}, name));
+  }
+
+  function tableHeading(key, label) {
+    const removing = tableRemoving(key);
+    const del = el("button", { className: "table-del", type: "button", title: removing ? "Undo" : "Delete table" });
+    del.append(icon(removing ? "undo" : "trash", "i i12"));
+    del.onclick = () => toggleTable(key);
+    const h = el("h3", {}, el("span", { className: "label", textContent: label }));
+    if (removing) h.append(el("span", { className: "chip chip-deleted", textContent: T[kbLang].chipDeleted }));
+    h.append(del);
+    return h;
+  }
+
+  function renderKnowledge(scroll = false) {
+    const keepScroll = kbEl.scrollTop;
+    kbEl.textContent = "";
+    if (!entries.length) { kbEl.append(el("div", { className: "panel-empty", textContent: "—" })); return; }
+    const t = T[kbLang];
+    for (const { key, label } of categories()) {
+      const body = el("tbody");
+      for (const r of rowsFor(key)) body.append(rowEl(r));
+      if (editing === key) body.append(editorRow(key));
+      else if (!tableRemoving(key)) {
+        const add = el("button", { className: "add-btn", type: "button" }, icon("plus"), t.add);
+        add.onclick = () => openEditor(key);
+        body.append(el("tr", { className: "add-row" }, el("td", { colSpan: 2 }, add)));
+      }
+      const head = el("tr", {}, el("th", { className: "c-topic", textContent: t.topic }), el("th", { textContent: t.content }));
+      kbEl.append(el("section", { className: `kb-section${tableRemoving(key) ? " removing" : ""}` },
+        tableHeading(key, label),
+        el("table", { className: "kb" }, el("thead", {}, head), body),
+      ));
+    }
+    if (editing === "__new_table__") kbEl.append(newTableForm());
+    else {
+      const nt = el("button", { className: "new-table", type: "button" }, icon("plus"), t.newTable);
+      nt.onclick = () => { editing = "__new_table__"; editingRow = null; renderKnowledge(); kbEl.scrollTo({ top: kbEl.scrollHeight, behavior: "smooth" }); };
+      kbEl.append(nt);
+    }
+    kbEl.scrollTop = keepScroll;
+    // Focus synchronously so keystrokes typed right after a click are never lost.
+    const field = kbEl.querySelector("tr.editor textarea, .table-name");
+    if (field) {
+      field.focus({ preventScroll: true });
+      field.setSelectionRange?.(field.value.length, field.value.length);
+    }
+    applyHighlight(scroll);
+  }
+
+  // Deleting and editing only mark rows; the Embed button applies the changes.
+  function toggleRemove(r) {
+    if (r.base) {
+      const v = vid(r);
+      if (baseState.get(v) === "removing") baseState.delete(v);
+      else baseState.set(v, "removing");
+    } else if (r.state === "pending" && !r.embeddedOnce && !r.replaces) {
+      userRows.splice(userRows.indexOf(r), 1); // never embedded: just drop it
+    } else {
+      r.state = r.state === "removing" ? "embedded" : "removing";
+    }
+    renderKnowledge();
+    updateEmbedButton();
+  }
+
+  function discardEdit(r) {
+    if (!r.embeddedOnce) userRows.splice(userRows.indexOf(r), 1); // the shared row comes back
+    else Object.assign(r, r.original, { state: "embedded", edited: false, original: undefined });
+    renderKnowledge();
+    updateEmbedButton();
+  }
+
+  function toggleTable(key) {
+    if (tableRemoving(key)) tableState.delete(key);
+    else {
+      const isUserTable = userTables.some((t) => t.key === key);
+      const hasEmbedded = userRows.some((r) => r.category === key && r.embeddedOnce);
+      if (isUserTable && !hasEmbedded) {
+        // Nothing of it is in Vectorize yet: remove it right away.
+        userTables.splice(userTables.findIndex((t) => t.key === key), 1);
+        for (let i = userRows.length - 1; i >= 0; i--) if (userRows[i].category === key) userRows.splice(i, 1);
+      } else tableState.set(key, "removing");
+      if (editing === key) editing = null;
+      editingRow = null;
+    }
+    renderKnowledge();
+    updateEmbedButton();
+  }
+
+  /* ── Embed changes into Vectorize ──────────────────────────────── */
+  const embedBtn = $("embed");
+  function pendingChanges() {
+    const inRemovedTable = (r) => tableRemoving(r.category);
+    const upsert = userRows.filter((r) => r.state === "pending" && !inRemovedTable(r));
+    const deletedBase = entries.flatMap((e) => ["en", "fr"].map((lang) => ({ e, v: `${e.id}-${lang}` })))
+      .filter(({ e, v }) => baseState.get(v) !== "hidden" && (baseState.get(v) === "removing" || tableRemoving(e.category)))
+      .map(({ v }) => v);
+    const replaced = userRows.filter((r) => r.replaces && baseState.get(r.replaces) !== "hidden").map((r) => r.replaces);
+    return {
+      upsert,
+      discard: userRows.filter((r) => !r.embeddedOnce && inRemovedTable(r)),
+      remove: userRows.filter((r) => r.embeddedOnce && (r.state === "removing" || inRemovedTable(r))),
+      deletedBase,
+      hide: [...new Set([...deletedBase, ...replaced])],
+      tables: [...tableState].filter(([, st]) => st === "removing").map(([key]) => key),
+    };
+  }
+  const changeCount = (c) => c.upsert.length + c.discard.length + c.remove.length + c.deletedBase.length;
+  function updateEmbedButton() {
+    if (embedBtn.classList.contains("busy") || embedBtn.classList.contains("done")) return;
+    const n = changeCount(pendingChanges());
+    embedBtn.classList.toggle("show", n > 0);
+    embedBtn.classList.remove("failed");
+    $("embed-label").textContent = T[kbLang].embed;
+    $("embed-n").textContent = n;
+  }
+  // Vectorize indexes writes in the background (measured: about 1–2 minutes, whatever the batch size).
+  // Each saved row shows "Indexing" until a real search returns its latest text, then flashes "Embedded".
+  // Batches are tracked separately, so several can index at the same time.
+  async function watchIndexing(rows, rev) {
+    const ids = rows.map(vid);
+    const until = Date.now() + 300_000;
+    let ready = false;
+    while (!ready && Date.now() < until) {
+      await new Promise((r) => setTimeout(r, 4000));
+      try {
+        const res = await fetch("/embed/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId, ids, rev }) });
+        ready = (await res.json()).ready === true;
+      } catch {}
+    }
+    const mine = rows.filter((r) => r.rev === rev); // a newer edit of the row has its own watcher
+    mine.forEach((r) => { r.indexing = false; r.justEmbedded = ready; });
+    renderKnowledge();
+    if (ready) setTimeout(() => {
+      mine.forEach((r) => { r.justEmbedded = false; $(`row-${r.id}`)?.classList.add("settle"); });
+    }, 1800);
+  }
+  embedBtn.onclick = async () => {
+    const c = pendingChanges();
+    if (!changeCount(c)) return;
+    embedBtn.classList.remove("failed");
+    embedBtn.classList.add("busy");
+    $("embed-label").textContent = T[kbLang].embedding;
+    $("embed-n").textContent = "";
+    try {
+      // Shared rows are never deleted from the index; hiding them only filters this session's searches.
+      let rev = "";
+      if (c.upsert.length || c.remove.length) {
+        const res = await fetch("/embed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            upsert: c.upsert.map((r) => ({ id: vid(r), category: r.category, title: r.title, text: r.text, lang: r.lang })),
+            remove: c.remove.map(vid),
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+        rev = data.rev;
+      }
+      c.upsert.forEach((r) => Object.assign(r, { state: "embedded", edited: false, embeddedOnce: true, original: undefined, indexing: true, rev }));
+      c.remove.forEach((r) => removedOwn.add(vid(r)));
+      for (const r of [...c.remove, ...c.discard]) userRows.splice(userRows.indexOf(r), 1);
+      c.hide.forEach((v) => baseState.set(v, "hidden"));
+      for (const key of c.tables) {
+        const i = userTables.findIndex((t) => t.key === key);
+        if (i >= 0) { userTables.splice(i, 1); tableState.delete(key); }
+        else tableState.set(key, "hidden");
+      }
+      if (c.upsert.length) watchIndexing(c.upsert, rev);
+      embedBtn.classList.remove("busy");
+      embedBtn.classList.add("done");
+      embedBtn.querySelector("use").setAttribute("href", "#i-check");
+      $("embed-label").textContent = T[kbLang].embedded;
+      renderKnowledge();
+      setTimeout(() => {
+        c.upsert.forEach((r) => { r.justEmbedded = false; });
+        kbEl.querySelectorAll("tr.st-embedded").forEach((tr) => tr.classList.add("settle"));
+        embedBtn.classList.remove("done");
+        embedBtn.querySelector("use").setAttribute("href", "#i-sparkle");
+        updateEmbedButton();
+      }, 1800);
+    } catch (err) {
+      embedBtn.classList.remove("busy");
+      embedBtn.classList.add("failed");
+      embedBtn.title = err.message;
+      $("embed-label").textContent = T[kbLang].retry;
+      $("embed-n").textContent = changeCount(c);
+    }
+  };
+
+  /* ── Language switch: the toggle's thumb stretches like liquid toward the new side,
+        and the tables flow out one side and in from the other. ─────────── */
+  const seg = $("seg"), thumb = $("seg-thumb");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function moveThumb(lang, animate = true) {
+    const btn = seg.querySelector(`button[data-lang="${lang}"]`);
+    const left = btn.offsetLeft, right = seg.clientWidth - btn.offsetLeft - btn.offsetWidth;
+    const goingRight = left > thumb.offsetLeft;
+    // Leading edge moves first and fast, trailing edge catches up: a short "stretch" then settle.
+    thumb.style.transition = !animate || reduceMotion ? "none" : goingRight
+      ? "right .28s cubic-bezier(.3,.7,.2,1), left .46s cubic-bezier(.5,0,.15,1) .06s"
+      : "left .28s cubic-bezier(.3,.7,.2,1), right .46s cubic-bezier(.5,0,.15,1) .06s";
+    thumb.style.left = left + "px";
+    thumb.style.right = right + "px";
+    seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+  }
+
+  let langSwitch = Promise.resolve();
+  function setLang(lang, after) {
+    langSwitch = langSwitch.then(async () => {
+      if (lang === kbLang) { after?.(); return; }
+      const dir = lang === "fr" ? -1 : 1; // toward FR the content flows left, toward EN it flows right
+      moveThumb(lang);
+      if (!reduceMotion) {
+        const out = (panelView === "kb" ? kbEl : bkEl).animate(
+          [{ transform: "translateX(0)", opacity: 1, filter: "blur(0)" }, { transform: `translateX(${dir * 28}px)`, opacity: 0, filter: "blur(3px)" }],
+          { duration: 170, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" },
+        );
+        await out.finished.catch(() => {});
+        out.cancel();
+      }
+      kbLang = lang;
+      editing = null;
+      editingRow = null;
+      renderKnowledge();
+      updateEmbedButton();
+      if (!reduceMotion) {
+        (panelView === "kb" ? kbEl : bkEl).animate(
+          [{ transform: `translateX(${-dir * 40}px)`, opacity: 0, filter: "blur(3px)" }, { transform: "translateX(0)", opacity: 1, filter: "blur(0)" }],
+          { duration: 460, easing: "cubic-bezier(.2,1.15,.35,1)" },
+        );
+      }
+      after?.();
+    });
+    return langSwitch;
+  }
+
+  /* ── Highlights: what the active turn's tool calls touched ─────── */
+  const isKbStep = (s) => s.tool === "semantic_search" || s.tool === "keyword_search";
+  function focusedSteps() {
+    const t = turns[activeTurn];
+    if (!t) return [];
+    return activeStep == null ? t.steps : [t.steps[activeStep]];
+  }
+
+  // Selecting a turn (or one of its steps) shows the view that step used: knowledge base or bookings.
+  function selectTurn(i, k = null, open = false) {
+    activeTurn = i;
+    activeStep = k;
+    const steps = focusedSteps();
+    if (steps.length) setView(isKbStep(steps.at(-1)) ? "kb" : "book");
+    applyHighlight(true);
+    if (open && steps.length && window.matchMedia("(max-width: 900px)").matches) frame.classList.add("panel-open");
+  }
+
+  function ping(tab) { tab.classList.remove("ping"); void tab.offsetWidth; tab.classList.add("ping"); }
+
+  function applyHighlight(scroll = true) {
+    kbEl.querySelectorAll("tr.in-context").forEach((r) => r.classList.remove("in-context"));
+    turns.forEach((t, i) => {
+      t.stepsEl?.classList.toggle("active", i === activeTurn);
+      t.stepEls.forEach((b, k) => {
+        const open = i === activeTurn && k === activeStep;
+        b.classList.toggle("open", open);
+        b.querySelector(".step-head")?.setAttribute("aria-expanded", String(open));
+      });
+    });
+    const steps = focusedSteps();
+    const collapsed = frame.classList.contains("panel-collapsed");
+
+    // Knowledge-base rows: best similarity score and every keyword they matched.
+    const hits = new Map();
+    for (const s of steps.filter(isKbStep)) {
+      for (const h of s.hits) {
+        const prev = hits.get(h.id) || { id: h.id, matched: [] };
+        if (h.score !== undefined) prev.score = Math.max(prev.score ?? 0, h.score);
+        if (h.matched) prev.matched = [...new Set([...prev.matched, ...h.matched])];
+        hits.set(h.id, prev);
+      }
+    }
+    $("ctx-count").textContent = hits.size || "";
+    $("tab-count").textContent = hits.size || "";
+    if (hits.size && collapsed) ping($("panel-tab"));
+
+    // Schedule: the times the assistant checked or offered, and the booking it made.
+    const sig = `${activeTurn}:${activeStep}:${turns[activeTurn]?.steps.length}`;
+    if (sig !== bk.focusSig) {
+      bk.focusSig = sig;
+      bk.focus = bookingFocus(steps);
+      if (bk.focus) {
+        bk.service = bk.focus.service;
+        bk.week = weekOf(bk.focus.date);
+        bk.scroll = scroll;
+        if (collapsed) ping($("book-tab"));
+      }
+    }
+    renderBookings();
+    if (!hits.size) return;
+
+    // Show the language the passages were retrieved in.
+    const langs = new Set([...hits.keys()].map((id) => id.slice(-2)));
+    if (langs.size === 1) {
+      const l = [...langs][0];
+      if (l !== kbLang) {
+        setLang(l, () => applyHighlight(scroll));
+        return;
+      }
+    }
+    let first = null;
+    for (const h of [...hits.values()].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))) {
+      const row = $(`row-${h.id.replace(/-(en|fr)$/, "")}`);
+      if (!row) continue;
+      row.classList.add("in-context");
+      const pills = h.matched.map((m) => el("span", { className: "score kw", textContent: m }));
+      if (h.score !== undefined) pills.unshift(el("span", { className: "score", textContent: h.score.toFixed(2) }));
+      row.querySelector(".hits").replaceChildren(...pills);
+      first ||= row;
+    }
+    if (scroll && first && panelView === "kb") first.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+
+  /* ── Panel views ───────────────────────────────────────────────── */
+  function setView(view) {
+    panelView = view;
+    panel.dataset.view = view;
+    document.querySelectorAll(".views button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.view === view)));
+    kbEl.hidden = view !== "kb";
+    bkEl.hidden = view !== "book";
+    renderBookings();
+  }
+  function viewLabels() {
+    $("view-kb").textContent = T[kbLang].kbTitle;
+    $("view-book").textContent = T[kbLang].bkTitle;
+  }
+
+  /* ── Bookings view ─────────────────────────────────────────────── */
+  const DAY_MS = 864e5;
+  const clinicToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Montreal" }).format(new Date());
+  const addDaysTo = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * DAY_MS).toISOString().slice(0, 10);
+  const weekOf = (d) => Math.max(0, Math.floor((Date.parse(`${d}T00:00:00Z`) - Date.parse(`${clinicToday()}T00:00:00Z`)) / DAY_MS / 7));
+  const fmtDay = (d, lang, opts) => new Date(`${d}T12:00:00Z`).toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA", { timeZone: "UTC", ...opts });
+  const serviceName = (id, lang) => catalog.services[id]?.[lang] || id;
+  const dentistName = (id) => catalog.dentists.find((d) => d.id === id)?.name || id;
+  const heldBookings = () => bookings.map(({ ref, service, date, time, dentist }) => ({ ref, service, date, time, dentist }));
+
+  function bookingFocus(steps) {
+    let focus = null;
+    for (const s of steps) {
+      if (s.tool === "check_availability" || s.tool === "show_booking_form") {
+        focus ||= { keys: new Set() };
+        focus.service = s.service;
+        s.slots.forEach((x) => focus.keys.add(`${x.date}|${x.time}|${x.dentist}`));
+        const d = s.slots[0]?.date || s.from;
+        if (!focus.date || d < focus.date) focus.date = d;
+      } else if (s.tool === "book_appointment" && s.booking) {
+        focus ||= { keys: new Set() };
+        Object.assign(focus, { service: s.booking.service, date: s.booking.date, ref: s.booking.ref });
+      }
+    }
+    return focus;
+  }
+
+  function addBooking(b) {
+    const entry = { ...b, fresh: true };
+    bookings.push(entry);
+    setTimeout(() => { entry.fresh = false; }, 2000);
+    const n = bookings.length;
+    $("bk-count").textContent = n;
+    $("book-tab-count").textContent = n;
+    $("book-pill-count").textContent = n;
+  }
+
+  async function loadAvailability(key, from) {
+    bk.loading = key;
+    try {
+      const res = await fetch("/availability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ service: key.split("|")[0], from, bookings: heldBookings() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (bk.loading === key) Object.assign(bk, { key, data });
+    } catch {
+      if (bk.loading === key) bk.failed = key;
+    }
+    if (bk.loading === key) {
+      bk.loading = "";
+      renderBookings();
+    }
+  }
+
+  function bookingCard(b) {
+    return el("div", { id: `bk-${b.ref}`, className: `bk-card${bk.focus?.ref === b.ref ? " hl" : ""}${b.fresh ? " fresh" : ""}` },
+      el("div", { className: "top" }, icon("check", "i i14"), el("span", { className: "ref", textContent: b.ref }),
+        el("span", { className: "when", textContent: `${fmtDay(b.date, kbLang, { weekday: "short", month: "short", day: "numeric" })} · ${b.time}` })),
+      el("div", { className: "who", textContent: `${serviceName(b.service, kbLang)} · ${dentistName(b.dentist)} · ${b.name}` }));
+  }
+
+  // Clicking a free time drafts the request in the composer; the assistant does the booking.
+  function draftBooking(date, time, dentists) {
+    const t = FT[kbLang];
+    const day = fmtDay(date, kbLang, { weekday: "long", month: "long", day: "numeric" });
+    const who = dentists.length === 1 ? ` ${t.with} ${dentistName(dentists[0])}` : "";
+    input.value = kbLang === "fr"
+      ? `Je voudrais réserver : ${serviceName(bk.service, "fr")}, ${day} à ${time}${who}.`
+      : `I'd like to book: ${serviceName(bk.service, "en")}, ${day} at ${time}${who}.`;
+    autosize();
+    frame.classList.remove("panel-open");
+    input.focus();
+  }
+
+  function availabilityGrid(from, key) {
+    const t = T[kbLang];
+    if (bk.key !== key) return el("div", { className: "bk-note", textContent: bk.failed === key ? t.loadFailed : "…" });
+    const grid = el("div", { className: "bk-grid" });
+    for (let i = 0; i < 7; i++) {
+      const date = addDaysTo(from, i);
+      const free = bk.data.slots.filter((s) => s.date === date);
+      const mine = bookings.filter((b) => b.date === date);
+      const times = [...new Set([...free.map((s) => s.time), ...mine.map((b) => b.time)])].sort();
+      const cell = el("div", { className: "times" });
+      if (!times.length) cell.textContent = bk.data.closed.includes(date) ? t.closed : t.full;
+      for (const time of times) {
+        const own = mine.find((b) => b.time === time);
+        const ds = free.filter((s) => s.time === time).map((s) => s.dentist);
+        const hl = own ? bk.focus?.ref === own.ref : ds.some((d) => bk.focus?.keys.has(`${date}|${time}|${d}`));
+        const chip = el("button", {
+          type: "button",
+          className: `t-chip${own ? " mine" : ""}${hl ? " hl" : ""}`,
+          title: own ? `${own.ref} · ${serviceName(own.service, kbLang)} · ${dentistName(own.dentist)}` : ds.map(dentistName).join(", "),
+        });
+        if (own) {
+          chip.append(icon("check", "i i10"), time);
+          chip.onclick = () => $(`bk-${own.ref}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+        } else {
+          chip.append(time);
+          chip.onclick = () => draftBooking(date, time, ds);
+        }
+        cell.append(chip);
+      }
+      grid.append(el("div", { className: `bk-day${times.length ? "" : " off"}` },
+        el("div", { className: "d" }, fmtDay(date, kbLang, { weekday: "short" }), el("b", { textContent: fmtDay(date, kbLang, { day: "numeric" }) })),
+        cell));
+    }
+    return grid;
+  }
+
+  function renderBookings() {
+    if (panelView !== "book") return;
+    const t = T[kbLang];
+    const from = addDaysTo(clinicToday(), bk.week * 7);
+    const key = `${bk.service}|${from}|${bookings.length}`;
+    if (bk.key !== key && bk.loading !== key && bk.failed !== key && catalog.dentists.length) loadAvailability(key, from);
+
+    const prev = el("button", { type: "button", title: t.prevWeek, disabled: bk.week === 0 }, icon("chevron", "i i14 flip"));
+    const next = el("button", { type: "button", title: t.nextWeek, disabled: bk.week >= 7 }, icon("chevron", "i i14"));
+    prev.onclick = () => { bk.week--; renderBookings(); };
+    next.onclick = () => { bk.week++; renderBookings(); };
+    const short = { month: "short", day: "numeric" };
+    const week = el("div", { className: "bk-week" }, prev,
+      el("span", { textContent: `${fmtDay(from, kbLang, short)} – ${fmtDay(addDaysTo(from, 6), kbLang, short)}` }), next,
+      el("span", { className: "svc", textContent: serviceName(bk.service, kbLang) }));
+    const list = bookings.length ? el("div", { className: "bk-list" }, ...[...bookings].reverse().map(bookingCard)) : null;
+
+    const keepScroll = bkEl.scrollTop;
+    bkEl.replaceChildren(...[list, week, availabilityGrid(from, key)].filter(Boolean));
+    bkEl.scrollTop = keepScroll;
+    if (bk.scroll && bk.key === key) {
+      bk.scroll = false;
+      bkEl.querySelector(".bk-card.hl, .t-chip.hl")?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }
+
+  /* ── Messages ──────────────────────────────────────────────────── */
+  function inline(text) {
+    // **bold** → <strong>, *italic* → <em>, everything else as text nodes.
+    const frag = document.createDocumentFragment();
+    text.split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*)/g).forEach((part) => {
+      if (/^\*\*[^*]+\*\*$/.test(part)) frag.append(el("strong", { textContent: part.slice(2, -2) }));
+      else if (/^\*[^*]+\*$/.test(part)) frag.append(el("em", { textContent: part.slice(1, -1) }));
+      else if (part) frag.append(part);
+    });
+    return frag;
+  }
+
+  // Paragraphs, "- " bullets and "1." lists; a list may follow an intro line in the same block.
+  function renderAnswer(text) {
+    const prose = el("div", { className: "prose" });
+    const bullet = /^[-•*]\s+/, numbered = /^\d+[.)]\s+/;
+    for (const block of text.trim().split(/\n\s*\n/)) {
+      let para = null, list = null;
+      for (const line of block.split("\n").map((l) => l.trim()).filter(Boolean)) {
+        const kind = bullet.test(line) ? "ul" : numbered.test(line) ? "ol" : "p";
+        if (kind === "p") {
+          list = null;
+          if (para) para.append(el("br"));
+          else prose.append((para = el("p")));
+          para.append(inline(line));
+        } else {
+          para = null;
+          if (list?.tagName.toLowerCase() !== kind) prose.append((list = el(kind)));
+          list.append(el("li", {}, inline(line.replace(kind === "ul" ? bullet : numbered, ""))));
+        }
+      }
+    }
+    return prose;
+  }
+
+  function addUser(text) {
+    const add = () => {
+      $("column").classList.remove("empty");
+      autosize(); // back to a one-line input at the bottom
+      transcript.append(el("article", { className: "turn-user" }, el("div", { className: "bubble", textContent: text })));
+    };
+    // First message: the centered input glides down to its place at the bottom.
+    // Resolves once the message is in the DOM, so the reply is always added after it.
+    if ($("column").classList.contains("empty") && document.startViewTransition && !reduceMotion) {
+      return document.startViewTransition(add).updateCallbackDone.catch(add);
+    }
+    add();
+    return Promise.resolve();
+  }
+
+  function addBotPending() {
+    const art = el("article", { className: "turn-bot" });
+    art.append(el("div", { className: "status loading" }, el("span", { className: "dot" }), el("span", { textContent: "Thinking…" })));
+    art.append(el("div", { className: "typing" }, el("span"), el("span"), el("span")));
+    transcript.append(art);
+    return art;
+  }
+
+  // One line per tool call, in the order the model made them; clicking one highlights what it touched.
+  const STEP_ICON = { semantic_search: "vector", keyword_search: "quote", check_availability: "calendar", show_booking_form: "form", book_appointment: "check" };
+  // A step built from the arguments the model sent, shown while the tool is still running.
+  const stepFromArgs = (tool, a = {}) => ({ tool, query: a.query, keywords: a.keywords, service: a.service, from: a.date_from, to: a.date_to, dentist: a.dentist, partOfDay: a.part_of_day });
+  function stepArg(s, lang) {
+    const short = { month: "short", day: "numeric" };
+    if (s.tool === "semantic_search") return s.query ? `"${s.query}"` : "";
+    if (s.tool === "keyword_search") return (s.keywords || []).join(" · ");
+    if (s.tool === "check_availability") {
+      return [s.service && serviceName(s.service, lang), s.from && s.to && `${fmtDay(s.from, lang, short)} – ${fmtDay(s.to, lang, short)}`,
+        s.dentist && dentistName(s.dentist), s.partOfDay].filter(Boolean).join(" · ");
+    }
+    if (s.tool === "show_booking_form") return s.service ? serviceName(s.service, lang) : "";
+    if (s.tool === "book_appointment") return s.booking ? `${s.booking.ref} · ${fmtDay(s.booking.date, lang, short)} ${s.booking.time}` : s.error || "";
+    return "";
+  }
+  // What a step looked at and what it returned, shown when the step is expanded.
+  function stepDetails(s, lang) {
+    const box = el("div", { className: "sd" });
+    const arg = stepArg(s, lang);
+    if (arg) box.append(el("div", { className: "sd-arg", textContent: arg }));
+    const row = (k, v) => el("div", { className: "sd-row" }, el("span", { className: "k", textContent: k }), el("span", { className: "v", textContent: v }));
+    if (s.hits) {
+      if (!s.hits.length) box.append(el("div", { className: "sd-none", textContent: "—" }));
+      for (const h of s.hits) box.append(row(h.title, h.score != null ? h.score.toFixed(2) : (h.matched || []).join(", ")));
+    }
+    if (s.slots) {
+      const days = new Map();
+      for (const x of s.slots) days.set(x.date, [...(days.get(x.date) || []), x.time]);
+      if (!days.size) box.append(el("div", { className: "sd-none", textContent: "—" }));
+      for (const [date, times] of days) box.append(row(fmtDay(date, lang, { weekday: "short", month: "short", day: "numeric" }), [...new Set(times)].join("  ")));
+    }
+    if (s.booking) box.append(row(`${serviceName(s.booking.service, lang)} · ${dentistName(s.booking.dentist)}`, s.booking.name));
+    return box;
+  }
+
+  function stepEl(s, lang, running = false) {
+    const head = el("button", { type: "button", className: "step-head" },
+      el("span", { className: "spin" }), icon(STEP_ICON[s.tool] || "sparkle", "i i14"),
+      el("span", { className: "tool", textContent: s.tool }), icon("chevron", "i chev"));
+    const step = el("div", { className: `step${s.error ? " err" : ""}${running ? " running enter" : ""}` }, head);
+    if (!running) {
+      head.setAttribute("aria-expanded", "false");
+      step.append(el("div", { className: "step-body" }, el("div", {}, stepDetails(s, lang))));
+    }
+    return step;
+  }
+
+  function bookingFormEl(f) {
+    const t = FT[f.lang] || FT.en;
+    const group = `slot-${rand(8)}`;
+    const form = el("form", { className: "bform", noValidate: true });
+    form.dataset.lang = f.lang;
+    const svc = catalog.services[f.service];
+    const slots = el("div", { className: "bslots", role: "radiogroup" });
+    f.slots.forEach((s, k) => {
+      slots.append(el("label", { className: "bslot" },
+        el("input", { type: "radio", name: group, value: String(k) }),
+        el("span", {}, el("b", { textContent: `${fmtDay(s.date, f.lang, { weekday: "short", month: "short", day: "numeric" })} · ${s.time}` }),
+          el("small", { textContent: dentistName(s.dentist) }))));
+    });
+    const name = el("input", { placeholder: t.name, autocomplete: "name", maxLength: 80 });
+    const phone = el("input", { type: "tel", placeholder: t.phone, autocomplete: "tel", maxLength: 30 });
+    const email = el("input", { type: "email", placeholder: t.email, autocomplete: "email", maxLength: 120, className: "wide" });
+    const notes = el("textarea", { rows: 1, placeholder: t.notes, maxLength: 300, className: "wide" });
+    const first = el("input", { type: "checkbox" });
+    [name, phone, email, notes].forEach((x) => x.setAttribute("aria-label", x.placeholder));
+    const err = el("span", { className: "err", role: "alert" });
+    const btn = el("button", { className: "bbtn", type: "submit", textContent: t.book });
+    form.append(
+      el("div", { className: "bform-head" }, icon("calendar"), el("span", { textContent: serviceName(f.service, f.lang) }), svc ? el("span", { className: "dur", textContent: `· ${svc.minutes} min` }) : null),
+      slots,
+      el("div", { className: "bfields" }, name, phone, email, notes),
+      el("div", { className: "bfoot" }, el("label", { className: "bcheck" }, first, t.first), err, btn),
+    );
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      if (busy || form.classList.contains("sent")) return;
+      const k = form.querySelector(`input[name="${group}"]:checked`)?.value;
+      const phoneOk = /^[\d\s()+.-]+$/.test(phone.value.trim()) && phone.value.replace(/\D/g, "").length >= 7;
+      err.textContent = k == null ? t.pick
+        : name.value.trim().length < 2 ? t.badName
+        : !phoneOk ? t.badPhone
+        : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()) ? t.badEmail : "";
+      if (err.textContent) return;
+      const s = f.slots[+k];
+      const bookingForm = { ...s, service: f.service, name: name.value.trim(), phone: phone.value.trim(), email: email.value.trim(), newPatient: first.checked, notes: notes.value.trim() };
+      const day = fmtDay(s.date, f.lang, { weekday: "long", month: "long", day: "numeric" });
+      setFormState(form, "sent");
+      send(`${t.request}: ${serviceName(f.service, f.lang)}, ${day} ${t.at} ${s.time} ${t.with} ${dentistName(s.dentist)}, ${t.for} ${bookingForm.name}.`,
+        { bookingForm, lang: f.lang, formEl: form });
+    };
+    return form;
+  }
+
+  function setFormState(form, state) {
+    form.classList.toggle("sent", state !== "open");
+    form.classList.toggle("booked", state === "booked");
+    form.querySelectorAll("input, textarea, button").forEach((x) => { x.disabled = state !== "open"; });
+    if (state === "booked") form.querySelector(".bbtn").replaceChildren(icon("check", "i i14"), FT[form.dataset.lang]?.booked || FT.en.booked);
+  }
+
+  function confirmEl(b, lang, i) {
+    const btn = el("button", { type: "button", className: "bconfirm" },
+      el("span", { className: "tick" }, icon("check")),
+      el("span", { className: "txt" },
+        el("span", { className: "what" }, el("b", { textContent: b.ref }), serviceName(b.service, lang)),
+        el("span", { className: "when", textContent: `${fmtDay(b.date, lang, { weekday: "long", month: "long", day: "numeric" })} · ${b.time} · ${dentistName(b.dentist)}` })));
+    btn.onclick = () => {
+      const k = turns[i].steps.findIndex((s) => s.tool === "book_appointment");
+      selectTurn(i, k >= 0 ? k : null, true);
+    };
+    return btn;
+  }
+
+  function buildSteps(i, steps, lang) {
+    const turn = turns[i];
+    turn.stepEls = steps.map((s, k) => {
+      const b = stepEl(s, lang);
+      b.querySelector(".step-head").onclick = () => selectTurn(i, activeTurn === i && activeStep === k ? null : k);
+      return b;
+    });
+    turn.stepsEl = steps.length ? el("div", { className: "steps" }, ...turn.stepEls) : null;
+    return turn.stepsEl;
+  }
+
+  function finishBot(art, data, ctx = {}) {
+    art.textContent = "";
+    const steps = data.steps || [];
+    const lang = ctx.lang || data.form?.lang || steps.find((s) => s.lang)?.lang || "en";
+    const i = ctx.turn ?? turns.length;
+    turns[i] = { steps, stepsEl: null, stepEls: [] };
+    const stepsEl = buildSteps(i, steps, lang);
+    if (stepsEl) art.append(stepsEl);
+    art.append(renderAnswer(data.answer || "…"));
+    if (data.booking) {
+      addBooking(data.booking);
+      art.append(confirmEl(data.booking, lang, i));
+    }
+    if (ctx.formEl) setFormState(ctx.formEl, data.booking ? "booked" : "sent");
+    if (data.form) art.append(bookingFormEl(data.form));
+    selectTurn(i, null, false);
+  }
+
+  function failBot(art, message) {
+    art.textContent = "";
+    art.append(el("div", { className: "prose error", textContent: message }));
+  }
+
+  // Keeps the newest text in view while it streams, unless the reader scrolled up.
+  function stickToBottom() {
+    if (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 160) scroller.scrollTop = scroller.scrollHeight;
+  }
+
+  // The reply as it happens: each tool call appears when it starts and settles when it returns,
+  // its rows light up in the panel, then the answer is written word by word.
+  function liveTurn(art, lang) {
+    const i = turns.length;
+    const turn = { steps: [], stepsEl: null, stepEls: [] };
+    turns.push(turn);
+    const lines = new Map();
+    let prose = null, text = "", raf = 0;
+    const typing = art.querySelector(".typing");
+    // Re-render the streamed text as formatted paragraphs and lists, once per frame.
+    const paint = () => {
+      raf = 0;
+      if (!prose) return;
+      let shown = text;
+      if ((shown.match(/\*\*/g) || []).length % 2) shown = shown.replace(/\*\*(?![\s\S]*\*\*)/, ""); // bold still being written
+      prose.replaceChildren(...Array.from(renderAnswer(shown).childNodes));
+      let last = prose.lastElementChild;
+      if (last && /^(UL|OL)$/.test(last.tagName)) last = last.lastElementChild;
+      (last || prose).append(el("span", { className: "caret" }));
+      stickToBottom();
+    };
+    const dropStatus = () => art.querySelector(".status")?.remove();
+    return {
+      turn: i,
+      tool(e) {
+        dropStatus();
+        if (!turn.stepsEl) {
+          turn.stepsEl = el("div", { className: "steps" });
+          art.prepend(turn.stepsEl);
+        }
+        const line = stepEl(stepFromArgs(e.tool, e.args), e.args?.lang || lang, true);
+        lines.set(e.id, line);
+        turn.stepsEl.append(line);
+        stickToBottom();
+      },
+      step(e) {
+        const line = lines.get(e.id);
+        if (!line) return;
+        if (!e.step) { line.remove(); return; }
+        line.classList.remove("running");
+        if (e.step.error) line.classList.add("err");
+        turn.steps.push(e.step);
+        selectTurn(i, null, false);
+      },
+      delta(e) {
+        dropStatus();
+        typing?.remove();
+        if (!prose) art.append((prose = el("div", { className: "prose live" })));
+        text += e.text;
+        raf ||= requestAnimationFrame(paint);
+      },
+      reset() {
+        cancelAnimationFrame(raf);
+        raf = 0;
+        text = "";
+        prose?.remove();
+        prose = null;
+        if (typing) art.append(typing);
+      },
+    };
+  }
+
+  async function readEvents(res, onEvent) {
+    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += value;
+      let nl;
+      while ((nl = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (line) onEvent(JSON.parse(line));
+      }
+    }
+  }
+
+  async function send(text, ctx = {}) {
+    text = text.trim();
+    if (!text || busy) return;
+    busy = true;
+    if (!ctx.formEl) {
+      input.value = "";
+      autosize();
+    }
+    // A new turn starts: the previous turn's highlights end here.
+    activeTurn = -1;
+    activeStep = null;
+    applyHighlight(false);
+    await addUser(text);
+    const art = addBotPending();
+    scrollToBottom();
+    try {
+      const res = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text,
+          history,
+          sessionId,
+          hidden: [...[...baseState].filter(([, st]) => st === "hidden").map(([v]) => v), ...removedOwn].slice(-100),
+          own: userRows.filter((r) => r.embeddedOnce).map(vid),
+          bookings: heldBookings(),
+          bookingForm: ctx.bookingForm,
+          stream: true,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Request failed (${res.status})`);
+      }
+      const live = liveTurn(art, ctx.lang || kbLang);
+      let result = null, failure = null;
+      await readEvents(res, (e) => {
+        if (e.type === "done") result = e;
+        else if (e.type === "error") failure = e.error;
+        else live[e.type]?.(e);
+      });
+      if (!result) throw new Error(failure || "Something went wrong. Please try again.");
+      finishBot(art, result, { ...ctx, turn: live.turn });
+      // Only the question and answer texts stay in the history; tool calls and results are not kept.
+      history.push({ role: "user", content: text }, { role: "assistant", content: result.answer });
+    } catch (err) {
+      failBot(art, err.message || "Something went wrong. Please try again.");
+      if (ctx.formEl) setFormState(ctx.formEl, "open");
+      activeTurn = -1;
+      activeStep = null;
+      applyHighlight(false);
+    } finally {
+      busy = false;
+      updateSend();
+      stickToBottom();
+      if (!ctx.formEl) input.focus();
+    }
+  }
+
+  /* ── Composer & layout ─────────────────────────────────────────── */
+  function autosize() { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 240) + "px"; updateSend(); }
+  function updateSend() { sendBtn.classList.toggle("ready", !!input.value.trim() && !busy); sendBtn.disabled = busy; }
+  function scrollToBottom() { scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" }); }
+
+  $("composer").addEventListener("submit", (e) => { e.preventDefault(); send(input.value); });
+  input.addEventListener("input", autosize);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(input.value); } });
+  document.querySelectorAll(".chips button").forEach((b) => b.addEventListener("click", () => send(b.textContent.trim())));
+  document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => setLang(b.dataset.lang)));
+  $("jump").onclick = scrollToBottom;
+  scroller.addEventListener("scroll", () => {
+    $("jump").classList.toggle("show", scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight > 200);
+  });
+  /* ── Resizable panel ───────────────────────────────────────────── */
+  const panel = $("panel"), handle = $("resize");
+  const MIN_PANEL = 340, MIN_CHAT = 480, GUTTER = 20;
+  const defaultWidth = () => Math.min(Math.round(window.innerWidth * 0.42), 620);
+  const clampWidth = (w) => Math.max(MIN_PANEL, Math.min(w, window.innerWidth - MIN_CHAT - GUTTER));
+  function setPanelWidth(w, save = false) {
+    const width = clampWidth(w);
+    panel.style.width = width + "px";
+    handle.setAttribute("aria-valuenow", String(width));
+    if (save) try { localStorage.setItem("kb-panel-width", String(width)); } catch {}
+  }
+  let stored = null;
+  try { stored = Number(localStorage.getItem("kb-panel-width")) || null; } catch {}
+  setPanelWidth(stored || defaultWidth());
+
+  // Dragging well past the minimum width collapses the panel; the edge tab brings it back.
+  const COLLAPSE_AT = MIN_PANEL - 110;
+  function setCollapsed(collapsed) {
+    frame.classList.toggle("panel-collapsed", collapsed);
+    panel.classList.remove("will-collapse");
+    try { localStorage.setItem("kb-panel-collapsed", collapsed ? "1" : ""); } catch {}
+  }
+  try { if (localStorage.getItem("kb-panel-collapsed") === "1") setCollapsed(true); } catch {}
+  $("collapse-panel").onclick = () => setCollapsed(true);
+  $("panel-tab").onclick = () => { setView("kb"); setCollapsed(false); };
+  $("book-tab").onclick = () => { setView("book"); setCollapsed(false); };
+  document.querySelectorAll(".views button").forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
+
+  handle.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    document.body.classList.add("resizing");
+    const right = frame.getBoundingClientRect().right - 8;
+    const startWidth = panel.getBoundingClientRect().width;
+    let collapse = false;
+    const move = (ev) => {
+      const raw = right - ev.clientX - 6;
+      collapse = raw < COLLAPSE_AT;
+      panel.classList.toggle("will-collapse", collapse);
+      setPanelWidth(raw);
+    };
+    const up = () => {
+      document.body.classList.remove("resizing");
+      handle.removeEventListener("pointermove", move);
+      if (collapse) { setPanelWidth(startWidth, true); setCollapsed(true); }
+      else setPanelWidth(panel.getBoundingClientRect().width, true);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up, { once: true });
+    handle.addEventListener("pointercancel", up, { once: true });
+  });
+  handle.addEventListener("dblclick", () => setPanelWidth(defaultWidth(), true));
+  handle.addEventListener("keydown", (e) => {
+    const step = e.shiftKey ? 80 : 24;
+    if (e.key === "ArrowLeft") setPanelWidth(panel.offsetWidth + step, true);
+    if (e.key === "ArrowRight") setPanelWidth(panel.offsetWidth - step, true);
+  });
+  window.addEventListener("resize", () => setPanelWidth(panel.offsetWidth));
+
+  $("open-panel").onclick = () => { setView("kb"); frame.classList.add("panel-open"); };
+  $("open-book").onclick = () => { setView("book"); frame.classList.add("panel-open"); };
+  $("close-panel").onclick = () => frame.classList.remove("panel-open");
+
+  fetch("/knowledge")
+    .then((r) => (r.ok ? r.json() : Promise.reject()))
+    .then((d) => {
+      entries = d.entries || [];
+      catalog = { services: d.services || {}, dentists: d.dentists || [] };
+      renderKnowledge();
+      renderBookings();
+      moveThumb(kbLang, false);
+    })
+    .catch(() => { kbEl.replaceChildren(el("div", { className: "panel-empty", textContent: "Could not load the dataset." })); });
+</script>
+</body>
+</html>
