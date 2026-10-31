@@ -27,6 +27,8 @@ import {
   type ServiceId,
   type Slot,
 } from "./booking";
+import { chunkText } from "./chunker";
+import { HANDBOOK_CHUNKS, handbookTitle } from "./handbook";
 import { BASE_SCOPE, toChunks, type Lang } from "./knowledge";
 import { chatCompletion, embed, type ChatMessage, type ToolDefinition } from "./openai";
 
@@ -62,6 +64,38 @@ export type ChatEvent =
   | { type: "delta"; text: string }
   | { type: "reset" };
 
+/** One tool call as the model made it: the raw arguments, and exactly what the code sent back to the model. */
+export interface TraceCall {
+  tool: string;
+  args: Record<string, unknown>;
+  result: unknown;
+  ms: number;
+}
+
+/** One model call: the tools it was offered, its text, the tools it called (in its order), and the timings. */
+export interface TraceRound {
+  offered: string[];
+  toolChoice: "auto" | "none";
+  modelMs: number;
+  text: string;
+  calls: TraceCall[];
+  /** Wall time of the round's tool calls, which run in parallel. */
+  toolsMs: number;
+}
+
+/** Everything one turn sent to the model and got back, for the trace view. */
+export interface Trace {
+  /** Chat model that writes the answers, and the embedding model semantic_search embeds queries with. */
+  model: string;
+  embeddingModel: string;
+  reasoningEffort: "none";
+  system: string;
+  /** Earlier messages sent before the question: their texts only. */
+  history: HistoryTurn[];
+  rounds: TraceRound[];
+  ms: number;
+}
+
 /** The booking form the model chose to show; the page renders it under the answer. */
 export interface BookingFormUI {
   service: ServiceId;
@@ -81,37 +115,28 @@ const MAX_RANGE_DAYS = 31;
 const SLOTS_PER_DAY = 6;
 const DAYS_PER_ANSWER = 5;
 const MAX_FORM_SLOTS = 6;
+// gpt-6-luna supports function calling in Chat Completions only with reasoning off.
+const REASONING_EFFORT = "none";
 
-const SYSTEM_PROMPT = `You are the virtual assistant of Lumière Dental Clinic, a dental clinic in Montréal.
+const SYSTEM_PROMPT = `You are the assistant of Lumière Dental Clinic in Montréal.
 
 Rules:
-- Answer ONLY with facts returned by your search tools. Never use outside knowledge about dentistry, prices or the clinic.
-- Reply in the language of the user's latest message (English or French). Write search queries and keywords in that language too, with lang set to it.
-- You cannot give medical diagnoses. For urgent symptoms, point to the emergency guidance from the knowledge base.
-- Only small talk (greetings, thanks, goodbyes) skips the search; answer it in one or two warm sentences and offer help.
+- Use only facts from your search results, never outside knowledge. No medical diagnoses; for urgent symptoms, give the clinic's emergency guidance.
+- Reply in the language of the user's last message (en or fr), and search in that language.
+- Small talk (hello, thanks, bye): reply in one or two warm sentences, without searching.
 
-Style: warm, friendly and easy to scan. Never write a flat block of text.
-- Open with one friendly sentence that answers directly, with the key fact in **bold**.
-- Give the details as "- " bullets, each starting with a **bold label**, e.g. "- **In-office:** $450, about 90 minutes".
-- When the question has several parts, give each part its own **bold label** line followed by its bullets.
-- End with one short, helpful next step, such as offering to check free times or book, with at most one emoji when it fits (😊 🦷 📅).
-- Keep it under about 90 words. Separate blocks with a blank line. No headings, tables or links.
-- When you don't have the answer, say so kindly and give the phone number in **bold**.
+Style: warm and under about 90 words. Open with one sentence giving the key fact in **bold**, then bullets that each start with a bold label, e.g. "- **In-office:** $450, about 90 minutes", then one short next step (one emoji at most). No headings, tables or links.
 
-How to search — follow this order for every question about the clinic, its services, prices, hours, policies, team, facilities or dental care. Search in this turn even when the answer seems to be earlier in the conversation, so every answer shows its sources:
-1. semantic_search first. Use the user's question as the query, rewritten to stand alone when it is a follow-up ("and for kids?" → "teeth whitening price for children"). If the question has several parts, search once per part.
-2. Check the results. If they answer the question, go to step 4.
-3. If they are not promising (no results, or the passages do not contain what was asked), make one more try, then check again:
-   a. semantic_search again with different wording: synonyms, the clinic's own terms, or a broader or narrower question; or
-   b. keyword_search with the exact words that must appear in the answer, when the question names something specific: a person, a brand or product, an insurer, a day, a price or a code.
-4. Answer only from the passages found. Before saying you don't know, make sure you tried keyword_search whenever the question contains a specific word the results did not mention (a name, brand, code or number). If the searches still did not return the answer, say clearly that you don't have that information and suggest calling the clinic at (514) 555-0142. Do not guess.
+Search, for every question about the clinic or dental care, even if it was answered earlier:
+1. semantic_search with a standalone query ("and for kids?" → "whitening price for children"); one search per part of the question.
+2. If the results miss the answer, try once more: other wording, or keyword_search for exact names, brands, codes or numbers.
+3. Still nothing: say so and give the phone number **(514) 555-0142**. Never guess.
 
-How to book — follow this order when the user wants an appointment:
-1. check_availability for the service they need, with their preferred dates, dentist or time of day if they gave any. If the service is unclear, ask which one first. Severe pain or a broken tooth: use "emergency".
-2. show_booking_form with up to 6 free slots from the results, spread over different days and times, matching what the user asked for. The form collects the chosen time and the patient's details: never ask for their name, phone or email in the chat. Then reply with one short sentence, e.g. that they can pick a time below. Do not list the times in your reply: the form shows them.
-3. book_appointment only after the user submits the form (their message starts with "Booking request"). Then confirm with the reference, date, time and dentist, and mention the text reminder 48 hours before.
-- If a booking fails because the time was just taken, call check_availability again and show the form with new times.
-- You cannot cancel or move appointments: give the phone number and search the cancellation policy.`;
+Booking:
+1. check_availability for the service (ask which one if unclear; severe pain → "emergency").
+2. show_booking_form with up to 6 free times spread over days, then reply in one sentence. Never list the times or ask for personal details: the form does both.
+3. book_appointment once the user has submitted the form, then confirm the reference, date, time and dentist, and the text reminder 48 hours before.
+- If the time was just taken, check again and show new times. To cancel or move an appointment: give the phone number and search the cancellation policy.`;
 
 const LANG_PARAM = { type: "string", enum: ["en", "fr"], description: "Language of the user's message." };
 
@@ -271,7 +296,7 @@ async function semanticSearch(env: Env, query: string, lang: Lang, view: Session
     }));
 }
 
-/** The same rows semantic search can reach: shared rows not hidden, plus this visitor's embedded rows. */
+/** The same passages semantic search can reach: shared rows not hidden, the handbook chunks, and this visitor's embedded rows. */
 async function keywordCorpus(env: Env, lang: Lang, view: SessionView): Promise<Passage[]> {
   const base = toChunks().filter((c) => c.lang === lang && !view.hidden.has(c.id));
   const own: Passage[] = [];
@@ -284,7 +309,8 @@ async function keywordCorpus(env: Env, lang: Lang, view: SessionView): Promise<P
       }
     }
   }
-  return [...base, ...own];
+  const handbook = HANDBOOK_CHUNKS.filter((c) => c.lang === lang).map((c) => ({ id: c.id, title: handbookTitle(c), category: "handbook", text: chunkText(c) }));
+  return [...base, ...handbook, ...own];
 }
 
 const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
@@ -369,7 +395,8 @@ export async function runChat(
   history: HistoryTurn[],
   view: SessionView = { hidden: new Set(), own: [], held: [] },
   onEvent: (event: ChatEvent) => void = () => {},
-): Promise<{ answer: string; steps: Step[]; sources: Hit[]; form?: BookingFormUI; booking?: Booking; modelMs: number[] }> {
+): Promise<{ answer: string; steps: Step[]; sources: Hit[]; form?: BookingFormUI; booking?: Booking; trace: Trace }> {
+  const turnStarted = Date.now();
   const now = clinicNow();
   const context = [
     `Now at the clinic: ${now.label} (Montréal time).`,
@@ -391,9 +418,12 @@ export async function runChat(
   let corpus: Promise<Passage[]> | undefined;
   let form: BookingFormUI | undefined;
   let booking: Booking | undefined;
-  const modelMs: number[] = [];
+  const trace: Trace = { model: env.CHAT_MODEL, embeddingModel: env.EMBEDDING_MODEL, reasoningEffort: REASONING_EFFORT, system: messages[0].content as string, history, rounds: [], ms: 0 };
   const ran = (tool: Step["tool"]) => steps.some((s) => s.tool === tool);
-  const done = (answer: string) => ({ answer, steps, sources: mergeHits(steps), form, booking, modelMs });
+  const done = (answer: string) => {
+    trace.ms = Date.now() - turnStarted;
+    return { answer, steps, sources: mergeHits(steps), form, booking, trace };
+  };
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     const isLastRound = round === MAX_TOOL_ROUNDS;
@@ -405,17 +435,26 @@ export async function runChat(
 
     const started = Date.now();
     let wroteText = false;
+    const toolChoice = isLastRound ? "none" : "auto";
     const reply = await chatCompletion(
       env.OPENAI_API_KEY,
-      { model: env.CHAT_MODEL, messages, tools: offered, tool_choice: isLastRound ? "none" : "auto", temperature: 0.2 },
+      { model: env.CHAT_MODEL, messages, tools: offered, tool_choice: toolChoice, reasoning_effort: REASONING_EFFORT },
       (text) => {
         wroteText = true;
         onEvent({ type: "delta", text });
       },
     );
-    modelMs.push(Date.now() - started);
+    const traced: TraceRound = {
+      offered: offered.map((t) => t.function.name),
+      toolChoice,
+      modelMs: Date.now() - started,
+      text: reply.content?.trim() || "",
+      calls: [],
+      toolsMs: 0,
+    };
+    trace.rounds.push(traced);
 
-    if (!reply.tool_calls?.length) return done(reply.content?.trim() || "");
+    if (!reply.tool_calls?.length) return done(traced.text);
     // Text written before tool calls is not the answer: the page clears it.
     if (wroteText) onEvent({ type: "reset" });
 
@@ -485,19 +524,23 @@ export async function runChat(
     };
 
     // Calls from one reply are independent, so they run in parallel; results keep the model's order.
+    const toolsStarted = Date.now();
     const results = await Promise.all(
       reply.tool_calls.map(async (call) => {
         const args = parseJson(call.function.arguments);
         onEvent({ type: "tool", id: call.id, tool: call.function.name, args });
         const started = Date.now();
         const { step, content } = await runTool(call.function.name, args);
-        const timed = step && { ...step, ms: Date.now() - started };
+        const ms = Date.now() - started;
+        const timed = step && { ...step, ms };
         onEvent({ type: "step", id: call.id, step: timed ?? null });
-        return { call, content, step: timed };
+        return { call, args, content, ms, step: timed };
       }),
     );
-    for (const { call, step, content } of results) {
+    traced.toolsMs = Date.now() - toolsStarted;
+    for (const { call, args, step, content, ms } of results) {
       if (step) steps.push(step);
+      traced.calls.push({ tool: call.function.name, args, result: content, ms });
       messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(content) });
     }
   }

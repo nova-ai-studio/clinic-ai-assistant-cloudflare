@@ -11,6 +11,8 @@ import {
   SERVICES,
 } from "./booking";
 import { runChat, type ChatEvent, type HistoryTurn, type SessionView } from "./chat";
+import { chunkText, CHUNKING, embeddedText } from "./chunker";
+import { HANDBOOK_CHUNKS, HANDBOOK_TITLE, handbookTitle } from "./handbook";
 import { BASE_SCOPE, KNOWLEDGE, toChunks } from "./knowledge";
 import { embed, OpenAIError } from "./openai";
 import { applySessionChanges, isIndexed, isOwnId, isSessionId, parseEmbedBody, parseStatusBody } from "./session-kb";
@@ -47,22 +49,23 @@ async function handleSeed(request: Request, env: Env): Promise<Response> {
     return json({ error: "Unauthorized" }, 401);
   }
 
-  const chunks = toChunks();
-  // Embed title + text so short questions ("hours?") match the topic name too.
-  const vectors = await embed(
-    env.OPENAI_API_KEY,
-    env.EMBEDDING_MODEL,
-    chunks.map((c) => `${c.title}\n${c.text}`),
-  );
-  await env.VECTORIZE.upsert(
-    chunks.map((c, i) => ({
-      id: c.id,
-      values: vectors[i],
-      metadata: { text: c.text, title: c.title, category: c.category, lang: c.lang, scope: BASE_SCOPE },
-    })),
-  );
+  // FAQ rows: title + text, so short questions ("hours?") match the topic name too.
+  const rows = toChunks().map((c) => ({
+    id: c.id,
+    input: `${c.title}\n${c.text}`,
+    metadata: { text: c.text, title: c.title, category: c.category, lang: c.lang, scope: BASE_SCOPE },
+  }));
+  // Handbook chunks: breadcrumb + text, so each chunk keeps the context of its headings.
+  const docs = HANDBOOK_CHUNKS.map((c) => ({
+    id: c.id,
+    input: embeddedText(c),
+    metadata: { text: chunkText(c), title: handbookTitle(c), category: "handbook", lang: c.lang, scope: BASE_SCOPE },
+  }));
+  const all = [...rows, ...docs];
+  const vectors = await embed(env.OPENAI_API_KEY, env.EMBEDDING_MODEL, all.map((v) => v.input));
+  await env.VECTORIZE.upsert(all.map(({ id, metadata }, i) => ({ id, values: vectors[i], metadata })));
   // Vectorize writes are async: new vectors become queryable after a few seconds.
-  return json({ upserted: chunks.length });
+  return json({ upserted: all.length, rows: rows.length, handbook: docs.length });
 }
 
 function parseChatBody(
@@ -134,7 +137,7 @@ async function handleChat(request: Request, env: Env, ctx: ExecutionContext): Pr
     ctx.waitUntil(
       (async () => {
         try {
-          const { modelMs: _modelMs, ...result } = await runChat(env, parsed.message, parsed.history, parsed.view, emit);
+          const result = await runChat(env, parsed.message, parsed.history, parsed.view, emit);
           emit({ type: "done", ...result });
         } catch (err) {
           console.error(err);
@@ -149,11 +152,11 @@ async function handleChat(request: Request, env: Env, ctx: ExecutionContext): Pr
     });
   }
 
-  const { modelMs, ...result } = await runChat(env, parsed.message, parsed.history, parsed.view);
+  const result = await runChat(env, parsed.message, parsed.history, parsed.view);
   const res = json(result);
   // Each model round and each tool call, visible in the browser's network panel.
   const timings = [
-    ...modelMs.map((ms, i) => `model-${i + 1};dur=${ms}`),
+    ...result.trace.rounds.map((r, i) => `model-${i + 1};dur=${r.modelMs}`),
     ...result.steps.map((s, i) => `${s.tool}-${i + 1};dur=${s.ms ?? 0}`),
   ];
   res.headers.set("Server-Timing", timings.join(", "));
@@ -205,7 +208,12 @@ export default {
       if (route === "POST /availability") return await handleAvailability(request);
       // The same content that /seed embeds, plus the bookable services, so the UI can show what the assistant knows.
       if (route === "GET /knowledge") {
-        return json({ entries: KNOWLEDGE, services: SERVICES, dentists: DENTISTS.map(({ id, name }) => ({ id, name })) });
+        return json({
+          entries: KNOWLEDGE,
+          handbook: { title: HANDBOOK_TITLE, chunking: CHUNKING, chunks: HANDBOOK_CHUNKS },
+          services: SERVICES,
+          dentists: DENTISTS.map(({ id, name }) => ({ id, name })),
+        });
       }
       if (["/chat", "/seed", "/embed", "/embed/status", "/knowledge", "/availability"].includes(pathname)) {
         return json({ error: "Method not allowed" }, 405);

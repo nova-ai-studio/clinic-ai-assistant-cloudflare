@@ -60,6 +60,8 @@ export async function chatCompletion(
     messages: ChatMessage[];
     tools?: ToolDefinition[];
     tool_choice?: "auto" | "required" | "none";
+    /** Reasoning models such as gpt-6-luna; tool calls in Chat Completions need "none". */
+    reasoning_effort?: "none" | "low" | "medium" | "high";
     temperature?: number;
   },
   onText: (text: string) => void = () => {},

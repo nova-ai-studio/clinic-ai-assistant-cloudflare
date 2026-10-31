@@ -4,7 +4,7 @@
 interface __BaseEnv_Env {
 	VECTORIZE: VectorizeIndex;
 	ASSETS: Fetcher;
-	CHAT_MODEL: "gpt-4o-mini";
+	CHAT_MODEL: "gpt-6-luna";
 	EMBEDDING_MODEL: "text-embedding-3-small";
 }
 declare namespace Cloudflare {

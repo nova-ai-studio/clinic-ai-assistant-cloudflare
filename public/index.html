@@ -361,7 +361,7 @@
   .views button[aria-selected="true"] { color: var(--text); background: var(--page); box-shadow: 0 1px 2px rgba(29, 52, 36, .10), 0 0 0 1px var(--line); }
   .views .count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--accent); color: #fff; font-size: 11px; line-height: 18px; text-align: center; flex: none; }
   .views .count:empty { display: none; }
-  .panel[data-view="book"] .embed-btn { display: none !important; }
+  .panel[data-view="book"] .embed-btn, .panel[data-view="trace"] .embed-btn, .panel[data-view="trace"] .seg { display: none !important; }
   .seg { position: relative; display: inline-flex; padding: 2px; border-radius: 8px; background: var(--fill-2); }
   .seg button { position: relative; z-index: 1; height: 26px; padding: 0 10px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--muted); transition: color .25s; }
   .seg button[aria-pressed="true"] { color: var(--accent-strong); }
@@ -545,6 +545,136 @@
   .t-chip.mine.hl { box-shadow: 0 0 0 3px rgba(111, 146, 117, .3); }
   .bk-note { padding: 18px 0; text-align: center; color: var(--muted); font-size: 13px; }
 
+  /* knowledge base: Tables | Handbook */
+  .kb-tabs { flex: none; display: flex; gap: 4px; padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .panel:not([data-view="kb"]) .kb-tabs { display: none; }
+  .panel[data-sub="handbook"] .embed-btn { display: none !important; }
+  .kb-tabs button {
+    height: 28px; padding: 0 10px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 500; color: var(--muted); transition: color .15s, background .15s, box-shadow .15s;
+  }
+  .kb-tabs button:hover { color: var(--text-2); background: var(--fill-1); }
+  .kb-tabs button[aria-selected="true"] { color: var(--accent-strong); background: var(--accent-soft); box-shadow: inset 0 0 0 1px #cfe0cb; }
+  .kb-tabs .n { font: 500 11px/16px var(--mono); color: var(--muted); }
+  .kb-tabs .n:empty, .kb-tabs .count:empty { display: none; }
+  .kb-tabs .count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--accent); color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
+
+  /* handbook: the document as one page, with the chunk cuts drawn on it */
+  .hb-rules { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .hb-rule { padding: 2px 9px; border-radius: 99px; background: var(--page); border: 1px solid var(--line); font-size: 12px; line-height: 18px; color: var(--text-2); }
+  .hb-rule b { font: 600 11.5px/18px var(--mono); color: var(--accent-strong); }
+  .hb-paper {
+    margin-top: 14px; padding: 24px 24px 28px 40px; border-radius: 6px; background: var(--page); border: 1px solid var(--line);
+    box-shadow: 0 1px 2px rgba(29, 52, 36, .06), 0 8px 24px rgba(29, 52, 36, .05);
+  }
+  .hb-paper h1 { margin: 0 0 4px; font-size: 20px; line-height: 28px; font-weight: 650; color: var(--text); }
+  .hb-paper h2 { margin: 22px 0 0; font-size: 15px; line-height: 22px; font-weight: 650; color: var(--accent-strong); }
+  .hb-paper h3 { margin: 0 0 4px; font-size: 13.5px; line-height: 20px; font-weight: 600; color: var(--text); }
+  .hb-paper p, .hb-paper ul { margin: 0 0 6px; font-size: 13px; line-height: 20px; color: var(--text-2); }
+  .hb-paper ul { padding-left: 18px; }
+  .hb-paper li::marker { color: var(--accent); }
+  /* a piece of the page, covered by one chunk, or by two where they overlap; each chunk is a bar in the margin */
+  .hb-piece { display: grid; grid-template-columns: 14px 1fr; column-gap: 12px; margin-left: -26px; }
+  .hb-lanes { display: flex; justify-content: center; gap: 4px; }
+  .hb-lane { width: 3px; }
+  .hb-lane.on { background: #c5d9c1; transition: background .2s; }
+  .hb-lane.start { margin-top: 15px; border-radius: 2px 2px 0 0; }
+  .hb-lane.end { margin-bottom: 6px; border-radius: 0 0 2px 2px; }
+  .hb-lane.on.hov { background: var(--accent); }
+  .hb-lane.on.in-context { background: var(--accent-strong); }
+  .hb-body { min-width: 0; padding: 0 8px; margin: 0 -8px; border-radius: 6px; transition: background .2s; }
+  .hb-piece.hov .hb-body { background: var(--accent-soft); }
+  .hb-piece.in-context .hb-body { background: var(--hl); }
+  .hb-piece.in-context p, .hb-piece.in-context ul { color: var(--text); }
+  /* overlap: the text both chunks hold, striped in the "edited" amber */
+  .hb-piece.shared .hb-body, .hb-piece.shared.hov .hb-body, .hb-piece.shared.in-context .hb-body {
+    background: repeating-linear-gradient(-45deg, #f6efdd 0 6px, #faf5e9 6px 12px);
+  }
+  .hb-piece.shared.in-context .hb-body { box-shadow: inset 0 0 0 1.5px #b2cbae; }
+  .hb-cut { display: flex; align-items: center; gap: 6px; padding-top: 8px; margin-bottom: 4px; font: 10.5px/16px var(--mono); color: #9cb79f; }
+  .hb-cut .line { flex: 1; min-width: 24px; border-top: 1.5px dashed #c5d9c1; }
+  .hb-cut .lbl { white-space: nowrap; }
+  .hb-cut .lbl b { font-weight: 500; color: var(--muted); }
+  .hb-cut .hits { margin: 0; }
+  .hb-cut.in-context .hits { display: flex; }
+  table.kb.hb-table { margin: 2px 0 6px; }
+  table.kb.hb-table th, table.kb.hb-table td { padding: 5px 8px; font-size: 12px; line-height: 17px; }
+  table.kb.hb-table th:first-child { width: 22%; }
+  table.kb.hb-table th:last-child { width: 28%; }
+  table.kb.hb-table td:first-child { font-family: var(--mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+  table.kb.hb-table.repeat th { background: repeating-linear-gradient(-45deg, #f6efdd 0 6px, #faf5e9 6px 12px); color: #86672c; }
+
+  /* trace view: every turn as a card; opening one shows, in order, what was sent to the model and what it did */
+  .tr-list { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  .tr-turn { border-radius: 10px; background: var(--page); border: 1px solid var(--line); transition: border-color .2s, box-shadow .2s; }
+  .tr-turn.active { border-color: #b2cbae; }
+  .tr-turn.open { box-shadow: 0 2px 12px rgba(29, 52, 36, .05); }
+  .tr-head { width: 100%; display: grid; grid-template-columns: 12px 22px 1fr auto; align-items: center; column-gap: 8px; row-gap: 2px; padding: 10px 12px; border-radius: 10px; text-align: left; }
+  .tr-head:hover { background: var(--fill-1); }
+  .tr-head svg.chev { width: 12px; height: 12px; color: #a3b0a6; transition: transform .2s; }
+  .tr-turn.open .tr-head svg.chev { transform: rotate(90deg); }
+  .tr-head .n { width: 22px; height: 22px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-strong); font: 600 11.5px/22px var(--mono); text-align: center; }
+  .tr-head .q { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--text); }
+  .tr-head .ms { font: 500 12px/18px var(--mono); color: var(--accent-strong); }
+  .tr-head .ms.err { color: var(--danger); }
+  .tr-head .route { grid-column: 3 / -1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11.5px/17px var(--mono); color: var(--muted); }
+  .tr-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .25s ease; }
+  .tr-turn.open .tr-body { grid-template-rows: 1fr; }
+  .tr-body > div { overflow: hidden; }
+  .tr-inner { padding: 6px 14px 4px 12px; border-top: 1px solid var(--line); }
+
+  /* the flow: one node per thing sent or done, in order, on a vertical rail */
+  .fl-item { position: relative; padding: 12px 0 4px 32px; }
+  .fl-item::before { content: ""; position: absolute; left: 10px; top: 0; bottom: 0; width: 2px; background: #cfdccd; }
+  .fl-item:first-child::before { top: 23px; }
+  .fl-item:last-child::before { bottom: auto; height: 23px; }
+  .fl-dot { position: absolute; left: 0; top: 12px; width: 22px; height: 22px; border-radius: 99px; display: flex; align-items: center; justify-content: center; background: var(--page); border: 1.5px solid #b2cbae; color: var(--accent-strong); }
+  .fl-model .fl-dot { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .fl-answer .fl-dot { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+  .fl-head { display: flex; align-items: center; gap: 8px; min-height: 22px; font-size: 13px; font-weight: 600; color: var(--text); }
+  .fl-head .v { margin-left: auto; font: 500 12px/18px var(--mono); color: var(--accent-strong); }
+  .fl-head .tag { padding: 0 6px; border-radius: 5px; background: var(--fill-2); font: 500 10.5px/17px var(--mono); color: var(--text-2); }
+  .fl-item > .tr-d { margin-top: 6px; }
+  .tr-q { margin-top: 6px; padding: 8px 12px; border-radius: 10px; background: var(--accent-soft); color: var(--text); overflow-wrap: anywhere; white-space: pre-wrap; }
+  .tr-offered { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; }
+  .tr-offered .k { margin-right: 2px; font-size: 12px; color: var(--muted); }
+  .tr-tool { padding: 1px 7px; border-radius: 6px; border: 1px solid var(--line); background: var(--page); font: 11.5px/18px var(--mono); color: var(--muted); }
+  .tr-tool.used { background: var(--accent); border-color: var(--accent); color: #fff; }
+  /* tool calls branch off the rail; parallel calls share a dashed bracket */
+  .fl-calls { position: relative; display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .fl-calls .tr-d { position: relative; margin-top: 0; }
+  .fl-calls .tr-d::before { content: ""; position: absolute; left: -21px; top: 14px; width: 19px; height: 2px; background: #cfdccd; }
+  .fl-calls.par { margin-left: 6px; padding-left: 10px; border-left: 2px dashed #c5d9c1; }
+  .fl-calls.par .tr-d::before { left: -12px; width: 10px; background: #c5d9c1; }
+  .fl-calls.par::before { content: "parallel"; margin-bottom: -2px; font: 600 10px/14px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: #9cb79f; }
+  .fl-calls.par::after { content: ""; position: absolute; left: -29px; top: 50%; width: 27px; height: 2px; background: #cfdccd; }
+  .tr-d { border-radius: 8px; background: var(--page); border: 1px solid var(--line); }
+  .tr-d summary {
+    display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; list-style: none;
+    font-size: 13px; color: var(--text-2); border-radius: 8px;
+  }
+  .tr-d summary::-webkit-details-marker { display: none; }
+  .tr-d summary::after { content: ""; order: 9; width: 5px; height: 5px; flex: none; margin: 0 2px 0 4px; border: solid #a3b0a6; border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); transition: transform .2s; }
+  .tr-d[open] summary::after { transform: rotate(45deg); }
+  .tr-d summary:hover { background: var(--fill-1); }
+  .tr-d summary svg { color: var(--accent); }
+  .tr-d summary .o { font: 600 11px/16px var(--mono); color: var(--muted); }
+  .tr-d summary .t { font: 500 12.5px/18px var(--mono); color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tr-d summary .t.plain { font: 500 13px/18px var(--sans); color: var(--text-2); }
+  .tr-d summary .v { margin-left: auto; flex: none; font: 12px/18px var(--mono); color: var(--accent-strong); }
+  .tr-d-body { padding: 0 10px 10px; }
+  .tr-k { margin: 8px 0 4px; font-size: 11.5px; line-height: 16px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .tr-pre {
+    margin: 0; padding: 8px 10px; max-height: 300px; overflow: auto; border-radius: 6px; background: var(--panel);
+    font: 11.5px/17px var(--mono); color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere;
+    scrollbar-width: thin; scrollbar-color: #d5ddd4 transparent;
+  }
+  .tr-msg { margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: var(--panel); font-size: 13px; line-height: 19px; color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .tr-msg b { display: block; font-size: 11px; line-height: 16px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .tr-msg.user { background: var(--accent-soft); }
+  .tr-answer { margin-top: 6px; padding: 8px 10px; border-radius: 8px; background: var(--panel); font-size: 13px; line-height: 20px; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .tr-note { margin-top: 6px; font-size: 12px; color: var(--muted); }
+
   .new-table {
     width: 100%; margin-top: 18px; height: 40px; border-radius: 8px;
     border: 1.5px dashed #cfd9cf; color: var(--muted);
@@ -598,6 +728,7 @@
   <symbol id="i-quote" viewBox="0 0 24 24"><path d="M9.5 6.5H6A1.5 1.5 0 0 0 4.5 8v3A1.5 1.5 0 0 0 6 12.5h3.5V9.5c0 4-1.5 6.5-4.5 8M19.5 6.5H16A1.5 1.5 0 0 0 14.5 8v3a1.5 1.5 0 0 0 1.5 1.5h3.5V9.5c0 4-1.5 6.5-4.5 8"/></symbol>
   <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
   <symbol id="i-form" viewBox="0 0 24 24"><rect x="4.5" y="3.5" width="15" height="17" rx="2.5"/><path d="M8 8.5h8M8 12.5h8M8 16.5h4.5"/></symbol>
+  <symbol id="i-scissors" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
   <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></symbol>
 </svg>
@@ -696,6 +827,7 @@
       <div class="titles views" role="tablist">
         <button type="button" role="tab" data-view="kb" aria-selected="true"><span id="view-kb">Knowledge base</span></button>
         <button type="button" role="tab" data-view="book" aria-selected="false"><span id="view-book">Bookings</span><span class="count" id="bk-count"></span></button>
+        <button type="button" role="tab" data-view="trace" aria-selected="false"><span id="view-trace">Trace</span></button>
       </div>
       <button class="embed-btn" id="embed" type="button"><svg class="i"><use href="#i-sparkle"/></svg><span id="embed-label">Embed</span><span class="n" id="embed-n"></span></button>
       <div class="seg" id="seg" role="group" aria-label="Language">
@@ -706,8 +838,14 @@
       <button id="collapse-panel" type="button" aria-label="Collapse panel" title="Collapse"><svg class="i"><use href="#i-collapse"/></svg></button>
       <button id="close-panel" type="button" aria-label="Close dataset"><svg class="i"><use href="#i-close"/></svg></button>
     </div>
+    <div class="kb-tabs" role="tablist" aria-label="Knowledge base content">
+      <button type="button" role="tab" data-sub="tables" aria-selected="true"><svg class="i i14"><use href="#i-table"/></svg><span id="sub-tables">Tables</span><span class="count" id="sub-tables-hits"></span></button>
+      <button type="button" role="tab" data-sub="handbook" aria-selected="false"><svg class="i i14"><use href="#i-form"/></svg><span id="sub-hb">Handbook</span><span class="n" id="sub-hb-n"></span><span class="count" id="sub-hb-hits"></span></button>
+    </div>
     <div class="panel-body" id="kb"><div class="panel-empty">Loading dataset…</div></div>
+    <div class="panel-body" id="hb" hidden></div>
     <div class="panel-body" id="bk" hidden></div>
+    <div class="panel-body" id="tr" hidden></div>
   </aside>
 </div>
 
@@ -721,9 +859,11 @@
   };
   const T = {
     en: { topic: "Topic", content: "Content", add: "Add question", newTable: "New table", q: "Question", a: "Answer", tableName: "Table name", save: "Add", cancel: "Cancel", embed: "Embed", embedding: "Embedding…", indexing: "Indexing…", embedded: "Embedded", retry: "Retry", saveEdit: "Save", chipNew: "New", chipEdited: "Edited", chipDeleted: "Deleted",
-      kbTitle: "Knowledge base", bkTitle: "Bookings", full: "Full", closed: "Closed", loadFailed: "Could not load times.", prevWeek: "Previous week", nextWeek: "Next week" },
+      kbTitle: "Knowledge base", bkTitle: "Bookings", trTitle: "Trace", tables: "Tables", handbook: "Handbook",
+      hbChunks: "chunks", hbTokens: "tokens max", hbOverlap: "sentences of overlap", hbSplit: "split by headings, then paragraphs", hbTable: "tables split by rows, header repeated", embeddedAs: "Embedded with:", full: "Full", closed: "Closed", loadFailed: "Could not load times.", prevWeek: "Previous week", nextWeek: "Next week" },
     fr: { topic: "Sujet", content: "Contenu", add: "Ajouter une question", newTable: "Nouvelle table", q: "Question", a: "Réponse", tableName: "Nom de la table", save: "Ajouter", cancel: "Annuler", embed: "Intégrer", embedding: "Intégration…", indexing: "Indexation…", embedded: "Intégré", retry: "Réessayer", saveEdit: "Enregistrer", chipNew: "Nouveau", chipEdited: "Modifié", chipDeleted: "Supprimé",
-      kbTitle: "Connaissances", bkTitle: "Rendez-vous", full: "Complet", closed: "Fermé", loadFailed: "Impossible de charger les plages.", prevWeek: "Semaine précédente", nextWeek: "Semaine suivante" },
+      kbTitle: "Connaissances", bkTitle: "Rendez-vous", trTitle: "Trace", tables: "Tables", handbook: "Guide du patient",
+      hbChunks: "segments", hbTokens: "jetons max", hbOverlap: "phrases de chevauchement", hbSplit: "découpé par titres, puis paragraphes", hbTable: "tableaux découpés par lignes, en-tête répété", embeddedAs: "Intégré avec :", full: "Complet", closed: "Fermé", loadFailed: "Impossible de charger les plages.", prevWeek: "Semaine précédente", nextWeek: "Semaine suivante" },
   };
   // Booking form, in the language the assistant chose for it.
   const FT = {
@@ -737,7 +877,7 @@
 
   const $ = (id) => document.getElementById(id);
   const frame = $("frame"), scroller = $("scroller"), transcript = $("transcript");
-  const input = $("input"), sendBtn = $("send"), kbEl = $("kb"), bkEl = $("bk");
+  const input = $("input"), sendBtn = $("send"), kbEl = $("kb"), hbEl = $("hb"), bkEl = $("bk"), trEl = $("tr");
 
   const rand = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
   // Identifies this page's own rows in Vectorize. Like the chat history, a reload starts a new session.
@@ -746,7 +886,9 @@
   // Conversation lives in page memory only; a reload starts fresh.
   const history = [];
   const turns = [];          // { steps, stepsEl, stepEls }: the tool calls of each answer
+  const traces = [];         // per turn: { question, trace?, running?, error? }: what the model was sent and returned
   let entries = [];          // shared base data from /knowledge
+  let handbook = null;       // { title, chunking, chunks }: the long document, as the chunks it was embedded as
   // Rows added or edited in this session: { id, category, title, text, lang, state, edited?, replaces?, embeddedOnce?, justEmbedded? }
   // state: "pending" (not embedded yet) | "embedded" | "removing"; replaces: the shared vector id it overrides.
   const userRows = [];
@@ -760,7 +902,8 @@
   let activeTurn = -1;
   let activeStep = null;        // one step of the active turn, or null for all of them
   let busy = false;
-  let panelView = "kb";         // "kb" | "book"
+  let panelView = "kb";         // "kb" | "book" | "trace"
+  let kbSub = "tables";         // knowledge base content shown: "tables" | "handbook"
   const bookings = [];          // appointments booked in this chat, like the history kept in page memory
   let catalog = { services: {}, dentists: [] };
   // Bookings view: the service and week shown, the loaded free times, and what the active turn touched.
@@ -968,6 +1111,7 @@
       field.focus({ preventScroll: true });
       field.setSelectionRange?.(field.value.length, field.value.length);
     }
+    renderHandbook();
     applyHighlight(scroll);
   }
 
@@ -1137,7 +1281,7 @@
       const dir = lang === "fr" ? -1 : 1; // toward FR the content flows left, toward EN it flows right
       moveThumb(lang);
       if (!reduceMotion) {
-        const out = (panelView === "kb" ? kbEl : bkEl).animate(
+        const out = activeBody().animate(
           [{ transform: "translateX(0)", opacity: 1, filter: "blur(0)" }, { transform: `translateX(${dir * 28}px)`, opacity: 0, filter: "blur(3px)" }],
           { duration: 170, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" },
         );
@@ -1150,7 +1294,7 @@
       renderKnowledge();
       updateEmbedButton();
       if (!reduceMotion) {
-        (panelView === "kb" ? kbEl : bkEl).animate(
+        activeBody().animate(
           [{ transform: `translateX(${-dir * 40}px)`, opacity: 0, filter: "blur(3px)" }, { transform: "translateX(0)", opacity: 1, filter: "blur(0)" }],
           { duration: 460, easing: "cubic-bezier(.2,1.15,.35,1)" },
         );
@@ -1173,7 +1317,9 @@
     activeTurn = i;
     activeStep = k;
     const steps = focusedSteps();
-    if (steps.length) setView(isKbStep(steps.at(-1)) ? "kb" : "book");
+    // The trace view stays open: it shows the selected turn instead.
+    if (panelView === "trace") renderTrace(true);
+    else if (steps.length) setView(isKbStep(steps.at(-1)) ? "kb" : "book");
     applyHighlight(true);
     if (open && steps.length && window.matchMedia("(max-width: 900px)").matches) frame.classList.add("panel-open");
   }
@@ -1181,7 +1327,7 @@
   function ping(tab) { tab.classList.remove("ping"); void tab.offsetWidth; tab.classList.add("ping"); }
 
   function applyHighlight(scroll = true) {
-    kbEl.querySelectorAll("tr.in-context").forEach((r) => r.classList.remove("in-context"));
+    document.querySelectorAll("#kb tr.in-context, #hb .in-context").forEach((r) => r.classList.remove("in-context"));
     turns.forEach((t, i) => {
       t.stepsEl?.classList.toggle("active", i === activeTurn);
       t.stepEls.forEach((b, k) => {
@@ -1204,6 +1350,10 @@
       }
     }
     $("ctx-count").textContent = hits.size || "";
+    // Hits per knowledge-base tab, so matches in the tab not shown are still visible.
+    const inHandbook = [...hits.keys()].filter((id) => id.startsWith("hb-")).length;
+    $("sub-hb-hits").textContent = inHandbook || "";
+    $("sub-tables-hits").textContent = hits.size - inHandbook || "";
     $("tab-count").textContent = hits.size || "";
     if (hits.size && collapsed) ping($("panel-tab"));
 
@@ -1233,15 +1383,21 @@
     }
     let first = null;
     for (const h of [...hits.values()].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))) {
-      const row = $(`row-${h.id.replace(/-(en|fr)$/, "")}`);
+      const key = h.id.replace(/-(en|fr)$/, "");
+      const row = $(key.startsWith("hb-") ? `chunk-${key}` : `row-${key}`);
       if (!row) continue;
       row.classList.add("in-context");
+      if (key.startsWith("hb-")) hbEl.querySelectorAll(`[data-c~="${key}"]`).forEach((n) => n.classList.add("in-context"));
       const pills = h.matched.map((m) => el("span", { className: "score kw", textContent: m }));
       if (h.score !== undefined) pills.unshift(el("span", { className: "score", textContent: h.score.toFixed(2) }));
       row.querySelector(".hits").replaceChildren(...pills);
       first ||= row;
     }
-    if (scroll && first && panelView === "kb") first.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (scroll && first && panelView === "kb") {
+      // Show the tab holding the best match: a table row or a handbook chunk.
+      setSub(first.classList.contains("hb-chunk") ? "handbook" : "tables");
+      first.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
   }
 
   /* ── Panel views ───────────────────────────────────────────────── */
@@ -1249,13 +1405,215 @@
     panelView = view;
     panel.dataset.view = view;
     document.querySelectorAll(".views button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.view === view)));
-    kbEl.hidden = view !== "kb";
+    setSub(kbSub);
     bkEl.hidden = view !== "book";
+    trEl.hidden = view !== "trace";
     renderBookings();
+    renderTrace(true);
   }
+  function setSub(sub) {
+    kbSub = sub;
+    panel.dataset.sub = sub;
+    document.querySelectorAll(".kb-tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.sub === sub)));
+    kbEl.hidden = panelView !== "kb" || sub !== "tables";
+    hbEl.hidden = panelView !== "kb" || sub !== "handbook";
+  }
+  const activeBody = () => (panelView === "book" ? bkEl : panelView === "trace" ? trEl : kbSub === "handbook" ? hbEl : kbEl);
   function viewLabels() {
+    $("sub-tables").textContent = T[kbLang].tables;
+    $("sub-hb").textContent = T[kbLang].handbook;
     $("view-kb").textContent = T[kbLang].kbTitle;
     $("view-book").textContent = T[kbLang].bkTitle;
+    $("view-trace").textContent = T[kbLang].trTitle;
+  }
+
+  /* ── Handbook ──────────────────────────────────────────────────── */
+  // The document as one page, rebuilt from its chunks in order. Each chunk is a bar in the margin
+  // (two lanes, alternating) with a cut line where it starts. Where a chunk begins with the last
+  // sentences of the one before (overlap), both bars run beside that text, striped in amber.
+  const SENTENCE_END = /(?<=[.!?])(?<!\b(?:Dr|Dre)\.)\s+(?=[A-ZÀ-Ý«"(\d])/u; // same rule as src/chunker.ts
+
+  function mdTable(md, repeat) {
+    const [head, , ...rows] = md.split("\n");
+    const cells = (line) => line.split("|").slice(1, -1).map((x) => x.trim());
+    return el("table", { className: `kb hb-table${repeat ? " repeat" : ""}` },
+      el("thead", {}, el("tr", {}, ...cells(head).map((x) => el("th", { textContent: x })))),
+      el("tbody", {}, ...rows.map((r) => el("tr", {}, ...cells(r).map((x) => el("td", { textContent: x }))))));
+  }
+
+  // Paragraphs and "- " list items.
+  function hbBlocks(text) {
+    const out = [];
+    let list = null;
+    for (const line of text.split("\n").filter(Boolean)) {
+      if (!line.startsWith("- ")) { list = null; out.push(el("p", { textContent: line })); continue; }
+      if (!list) out.push((list = el("ul")));
+      list.append(el("li", { textContent: line.slice(2) }));
+    }
+    return out;
+  }
+
+  // A chunk's text split where the next chunk's overlap starts: its own part, then the shared tail.
+  function splitShared(body, overlap) {
+    let at = body.lastIndexOf(overlap.split(SENTENCE_END)[0]);
+    if (at < 0) return null;
+    if (body.slice(Math.max(0, at - 2), at) === "- ") at -= 2;
+    return { own: body.slice(0, at).trimEnd(), tail: body.slice(at).trim() };
+  }
+
+  function renderHandbook() {
+    if (!handbook) return;
+    const t = T[kbLang];
+    const chunks = handbook.chunks.filter((c) => c.lang === kbLang);
+    $("sub-hb-n").textContent = chunks.length;
+    const keys = chunks.map((c) => c.id.replace(/-(en|fr)$/, ""));
+    const cuts = chunks.map((c, k) => el("div", { id: `chunk-${keys[k]}`, className: "hb-chunk hb-cut", title: `${t.embeddedAs} ${c.path.join(" › ")}` },
+      icon("scissors", "i i12"), el("span", { className: "line" }), el("span", { className: "hits" }),
+      el("span", { className: "lbl" }, el("b", { textContent: c.id }), ` · ${c.tokens} tok${c.parts > 1 ? ` · ${c.part}/${c.parts}` : ""}`)));
+
+    // The page as pieces in reading order, each covered by one chunk or, where they overlap, two.
+    const pieces = [];
+    const placed = new Set();
+    let chapter = null;
+    chunks.forEach((c, k) => {
+      if (c.path[1] !== chapter) pieces.push({ heading: (chapter = c.path[1]) });
+      const next = chunks[k + 1];
+      const split = c.kind === "text" && next?.overlap && next.path.join() === c.path.join() ? splitShared(c.body, next.overlap) : null;
+      const nodes = placed.has(k) ? [] : [cuts[k]];
+      if (c.part === 1) nodes.push(el("h3", { textContent: c.path.at(-1) }));
+      nodes.push(...(c.kind === "table" ? [mdTable(c.body, c.part > 1)] : hbBlocks(split ? split.own : c.body)));
+      pieces.push({ covers: [k], nodes });
+      if (split) {
+        placed.add(k + 1);
+        pieces.push({ covers: [k, k + 1], shared: true, nodes: [cuts[k + 1], ...hbBlocks(split.tail)] });
+      }
+    });
+
+    const paper = el("article", { className: "hb-paper" }, el("h1", { textContent: handbook.title[kbLang] }));
+    pieces.forEach((p, n) => {
+      if (p.heading) { paper.append(el("h2", { textContent: p.heading })); return; }
+      const lanes = [0, 1].map((lane) => {
+        const k = p.covers.find((i) => i % 2 === lane);
+        if (k == null) return el("span", { className: "hb-lane" });
+        const start = !pieces[n - 1]?.covers?.includes(k), end = !pieces[n + 1]?.covers?.includes(k);
+        const bar = el("span", { className: `hb-lane on${start ? " start" : ""}${end ? " end" : ""}` });
+        bar.dataset.c = keys[k];
+        return bar;
+      });
+      const piece = el("div", { className: `hb-piece${p.shared ? " shared" : ""}` }, el("div", { className: "hb-lanes" }, ...lanes), el("div", { className: "hb-body" }, ...p.nodes));
+      piece.dataset.c = p.covers.map((i) => keys[i]).join(" ");
+      paper.append(piece);
+    });
+
+    const { maxTokens, overlapSentences } = handbook.chunking;
+    const rule = (value, label) => el("span", { className: "hb-rule" }, value != null ? el("b", { textContent: value }) : null, value != null ? ` ${label}` : label);
+    const keepScroll = hbEl.scrollTop;
+    hbEl.replaceChildren(
+      el("div", { className: "hb-rules" },
+        rule(String(chunks.length), t.hbChunks), rule(`≤ ${maxTokens}`, t.hbTokens), rule(`≤ ${overlapSentences}`, t.hbOverlap),
+        rule(null, t.hbSplit), rule(null, t.hbTable)),
+      paper);
+    hbEl.scrollTop = keepScroll;
+  }
+
+  // Hovering any part of a chunk lights up all of it; the shared part lights up both chunks.
+  const markChunks = (cls, ids) => {
+    hbEl.querySelectorAll(`.${cls}`).forEach((n) => n.classList.remove(cls));
+    for (const id of ids) hbEl.querySelectorAll(`[data-c~="${id}"]`).forEach((n) => n.classList.add(cls));
+  };
+  hbEl.addEventListener("mouseover", (e) => markChunks("hov", e.target.closest(".hb-piece")?.dataset.c.split(" ") || []));
+  hbEl.addEventListener("mouseleave", () => markChunks("hov", []));
+
+  /* ── Trace view ────────────────────────────────────────────────── */
+  // Every turn as a card. Opening one shows, in order: the system prompt, the earlier messages and the
+  // question sent to the model, then each model call with the tools it was offered, the tools it picked
+  // (with their arguments and what the code returned), and the answer, with timings.
+  const openTraces = new Set();  // turns whose card is open
+  const fmtMs = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${ms} ms`);
+  const tracePre = (v) => el("pre", { className: "tr-pre", textContent: typeof v === "string" ? v : JSON.stringify(v, null, 2) });
+
+  function traceDetails(key, head, ...body) {
+    const d = el("details", { className: "tr-d" }, el("summary", {}, ...head), el("div", { className: "tr-d-body" }, ...body));
+    d.dataset.key = key;
+    return d;
+  }
+
+  function flowItem(cls, dotIcon, ...children) {
+    return el("div", { className: `fl-item ${cls}` }, el("span", { className: "fl-dot" }, icon(dotIcon, "i i12")), ...children);
+  }
+  const flowHead = (title, value, tag) => el("div", { className: "fl-head" }, el("span", { textContent: title }),
+    tag ? el("span", { className: "tag", textContent: tag }) : null, value ? el("span", { className: "v", textContent: value }) : null);
+
+  // "semantic_search → keyword_search → answer", with parallel calls joined by "+".
+  const traceRoute = (tr) => [...tr.rounds.filter((r) => r.calls.length).map((r) => r.calls.map((c) => c.tool).join(" + ")), "answer"].join("  →  ");
+
+  function traceFlow(tr, i) {
+    const flow = el("div", { className: "fl" });
+    flow.append(flowItem("fl-sent", "form", flowHead("System prompt"),
+      traceDetails(`${i}-system`, [el("span", { className: "t plain", textContent: "Instructions + clinic time" }), el("span", { className: "v", textContent: `${tr.system.length.toLocaleString()} chars` })],
+        tracePre(tr.system))));
+    if (tr.history.length) {
+      flow.append(flowItem("fl-sent", "quote", flowHead("Conversation so far"),
+        traceDetails(`${i}-history`, [el("span", { className: "t plain", textContent: "Earlier questions and answers" }), el("span", { className: "v", textContent: `${tr.history.length} msg` })],
+          ...tr.history.map((m) => el("div", { className: `tr-msg ${m.role}` }, el("b", { textContent: m.role === "user" ? "User" : "Assistant" }), m.content)))));
+    }
+    flow.append(flowItem("fl-sent", "arrow-up", flowHead("User message"), el("div", { className: "tr-q", textContent: traces[i].question })));
+
+    let order = 0;
+    tr.rounds.forEach((r, k) => {
+      const used = new Set(r.calls.map((c) => c.tool));
+      const item = flowItem("fl-model", "sparkle", flowHead(`Model call ${k + 1}`, fmtMs(r.modelMs), `${tr.model} · reasoning ${tr.reasoningEffort}`),
+        el("div", { className: "tr-offered" },
+          el("span", { className: "k", textContent: r.toolChoice === "none" ? "Tools off:" : "Offered:" }),
+          ...r.offered.map((name) => el("span", { className: `tr-tool${used.has(name) ? " used" : ""}`, textContent: name }))));
+      if (r.calls.length) {
+        item.append(el("div", { className: `fl-calls${r.calls.length > 1 ? " par" : ""}` }, ...r.calls.map((c, n) => traceDetails(`${i}-${k}-${n}`,
+          [el("span", { className: "o", textContent: String(++order) }), icon(STEP_ICON[c.tool] || "sparkle", "i i14"), el("span", { className: "t", textContent: c.tool }), el("span", { className: "v", textContent: fmtMs(c.ms) })],
+          c.tool === "semantic_search" ? el("div", { className: "tr-note", textContent: `Query embedded with ${tr.embeddingModel}, then searched in Vectorize` }) : null,
+          el("div", { className: "tr-k", textContent: "Arguments from the model" }), tracePre(c.args),
+          el("div", { className: "tr-k", textContent: "Returned to the model" }), tracePre(c.result)))));
+        if (r.text) item.append(el("div", { className: "tr-note", textContent: `Text before the tool calls (cleared): ${r.text}` }));
+      }
+      flow.append(item);
+    });
+    const last = tr.rounds.at(-1);
+    flow.append(flowItem("fl-answer", "check", flowHead("Answer", fmtMs(tr.ms)), el("div", { className: "tr-answer", textContent: last?.text || "—" })));
+    return flow;
+  }
+
+  function traceTurn(t, i) {
+    const tr = t.trace;
+    const open = !!tr && openTraces.has(i);
+    const head = el("button", { type: "button", className: "tr-head", disabled: !tr },
+      icon("chevron", "i chev"), el("span", { className: "n", textContent: String(i + 1) }),
+      el("span", { className: "q", textContent: t.question }),
+      el("span", { className: `ms${t.error ? " err" : ""}`, textContent: tr ? fmtMs(tr.ms) : t.error ? "failed" : "running…" }),
+      tr ? el("span", { className: "route", textContent: traceRoute(tr) }) : null);
+    head.setAttribute("aria-expanded", String(open));
+    head.onclick = () => {
+      if (openTraces.has(i)) openTraces.delete(i);
+      else openTraces.add(i);
+      renderTrace();
+    };
+    const card = el("section", { id: `tr-${i}`, className: `tr-turn${open ? " open" : ""}${i === activeTurn ? " active" : ""}` }, head);
+    if (tr) card.append(el("div", { className: "tr-body" }, el("div", {}, el("div", { className: "tr-inner" }, traceFlow(tr, i)))));
+    return card;
+  }
+
+  function renderTrace(scroll = false) {
+    if (panelView !== "trace") return;
+    const cards = traces.map((t, i) => t && traceTurn(t, i)).filter(Boolean);
+    if (!cards.length) {
+      trEl.replaceChildren(el("div", { className: "panel-empty", textContent: "Ask a question: each turn shows up here. Open one to see what the model was sent and what it did." }));
+      return;
+    }
+    // Re-rendering keeps the sections the reader opened.
+    const open = new Set([...trEl.querySelectorAll("details[open]")].map((d) => d.dataset.key));
+    const keepScroll = trEl.scrollTop;
+    trEl.replaceChildren(el("div", { className: "tr-list" }, ...cards));
+    trEl.querySelectorAll("details").forEach((d) => { d.open = open.has(d.dataset.key); });
+    trEl.scrollTop = keepScroll;
+    if (scroll) ($(`tr-${activeTurn}`) || trEl.querySelector(".tr-turn:last-child"))?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
   /* ── Bookings view ─────────────────────────────────────────────── */
@@ -1702,6 +2060,7 @@
     await addUser(text);
     const art = addBotPending();
     scrollToBottom();
+    let live = null;
     try {
       const res = await fetch("/chat", {
         method: "POST",
@@ -1721,7 +2080,9 @@
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `Request failed (${res.status})`);
       }
-      const live = liveTurn(art, ctx.lang || kbLang);
+      live = liveTurn(art, ctx.lang || kbLang);
+      traces[live.turn] = { question: text, running: true };
+      renderTrace(true);
       let result = null, failure = null;
       await readEvents(res, (e) => {
         if (e.type === "done") result = e;
@@ -1729,15 +2090,18 @@
         else live[e.type]?.(e);
       });
       if (!result) throw new Error(failure || "Something went wrong. Please try again.");
+      traces[live.turn] = { question: text, trace: result.trace };
       finishBot(art, result, { ...ctx, turn: live.turn });
       // Only the question and answer texts stay in the history; tool calls and results are not kept.
       history.push({ role: "user", content: text }, { role: "assistant", content: result.answer });
     } catch (err) {
       failBot(art, err.message || "Something went wrong. Please try again.");
       if (ctx.formEl) setFormState(ctx.formEl, "open");
+      if (live && !traces[live.turn]?.trace) traces[live.turn] = { question: text, error: true };
       activeTurn = -1;
       activeStep = null;
       applyHighlight(false);
+      renderTrace();
     } finally {
       busy = false;
       updateSend();
@@ -1787,6 +2151,7 @@
   $("panel-tab").onclick = () => { setView("kb"); setCollapsed(false); };
   $("book-tab").onclick = () => { setView("book"); setCollapsed(false); };
   document.querySelectorAll(".views button").forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
+  document.querySelectorAll(".kb-tabs button").forEach((b) => b.addEventListener("click", () => setSub(b.dataset.sub)));
 
   handle.addEventListener("pointerdown", (e) => {
     e.preventDefault();
@@ -1827,6 +2192,7 @@
     .then((r) => (r.ok ? r.json() : Promise.reject()))
     .then((d) => {
       entries = d.entries || [];
+      handbook = d.handbook || null;
       catalog = { services: d.services || {}, dentists: d.dentists || [] };
       renderKnowledge();
       renderBookings();
